@@ -20,7 +20,7 @@ export async function openIncident(event:any,policy:any,profile:any):Promise<any
 export async function getIncident(ctx:AuthContext,id:string){
  assertPermission(ctx,'emergencies.read');const row=(await pool.query('SELECT * FROM hg_emergency_incidents WHERE id=$1 AND household_id=$2',[id,ctx.household_id])).rows[0];if(!row)fail(404,'NOT_FOUND','No se encontró la emergencia.');
  const call=(await pool.query('SELECT id,state,audio_status,transcript,created_at,accepted_at FROM hg_simulated_calls WHERE incident_id=$1 AND household_id=$2',[id,ctx.household_id])).rows[0]||null;
- return {...row,profile_snapshot:ctx.role==='ADMINISTRADOR'?row.profile_snapshot:undefined,call};
+ return {...row,profile_snapshot:ctx.role==='ADMINISTRADOR'?row.profile_snapshot:undefined,call:call?{...call,transcript:ctx.role==='ADMINISTRADOR'?call.transcript:undefined}:null};
 }
 export async function respondIncident(ctx:AuthContext,id:string,body:{response:'I_AM_OK'|'REQUEST_HELP';expected_revision:number},key:string){
  assertPermission(ctx,'emergencies.respond');if(!['I_AM_OK','REQUEST_HELP'].includes(body.response))fail(400,'INVALID_RESPONSE','Respuesta no válida.');

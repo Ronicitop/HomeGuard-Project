@@ -38,3 +38,8 @@ test('five failed attempts lock the login without revealing account existence',a
  for(let i=0;i<5;i++)await login('unknown@test.local','bad','locked-ip').catch(()=>{});
  await expect(login('unknown@test.local','bad','locked-ip')).rejects.toMatchObject({status:429});
 });
+test('disabling household membership invalidates an existing session',async()=>{
+ const issued=await login('guest@test.local','Test-HomeGuard-123!','disable-ip');
+ await pool.query('UPDATE hg_memberships SET enabled=false WHERE household_id=$1 AND user_id=2',[HOME]);
+ await expect(requireSession(new Request('http://localhost/api/v1/auth/me',{headers:{authorization:`Bearer ${issued.token}`}}))).rejects.toMatchObject({status:401});
+});

@@ -1,0 +1,5 @@
+import {randomBytes,createCipheriv,createDecipheriv} from 'node:crypto';
+import {fail} from '../http/errors';
+function key(){const value=Buffer.from(process.env.HG_SECRET_KEY||'','base64');if(value.length!==32)fail(503,'TOKEN_ENCRYPTION_NOT_CONFIGURED','Falta configurar el cifrado local de dispositivos.');return value;}
+export function encryptToken(token:string){const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key(),iv);const data=Buffer.concat([cipher.update(token,'utf8'),cipher.final()]);return ['v1',iv.toString('base64url'),cipher.getAuthTag().toString('base64url'),data.toString('base64url')].join('.');}
+export function decryptToken(value:string){const [version,iv,tag,data]=value.split('.');if(version!=='v1')throw new Error('Invalid encrypted token');const decipher=createDecipheriv('aes-256-gcm',key(),Buffer.from(iv,'base64url'));decipher.setAuthTag(Buffer.from(tag,'base64url'));return Buffer.concat([decipher.update(Buffer.from(data,'base64url')),decipher.final()]).toString('utf8');}

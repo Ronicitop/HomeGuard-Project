@@ -1,0 +1,5 @@
+{
+ "name":"homeguard-local-platform","private":true,"version":"1.0.0",
+ "scripts":{"broker":"node scripts/broker.cjs","test":"node --test scripts/tests/*.test.cjs","format":"prettier --write backend-next/lib backend-next/workers backend-next/scripts backend-next/tests backend-next/app/api frontend-react/src mobile-app/src mobile-app/App.tsx contracts"},
+ "dependencies":{"aedes":"0.51.3"},"devDependencies":{"prettier":"3.8.3"}
+}
