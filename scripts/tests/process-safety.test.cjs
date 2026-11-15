@@ -1,0 +1,5 @@
+const {test}=require('node:test');const {spawnSync}=require('node:child_process');const assert=require('node:assert/strict');const {join}=require('node:path');
+test('supervisor rejects unrelated executables, sibling paths and command path suffixes',()=>{
+ const source=join(__dirname,'../SafeProcess.ps1').replaceAll("'","''");const script=`. '${source}'; $root='C:\\HomeGuard'; $entry='C:\\HomeGuard\\worker.js'; $p=[pscustomobject]@{ExecutablePath='C:\\Node\\node.exe';CommandLine='node C:\\Other\\worker.js'}; if(Test-HomeGuardProcess $p $root $entry 'C:\\Node\\node.exe'){exit 1}; $p.CommandLine='node C:\\HomeGuard\\worker.js';if(-not(Test-HomeGuardProcess $p $root $entry 'C:\\Node\\node.exe')){exit 2};if(Test-HomeGuardProcess $p $root 'C:\\Other\\worker.js' 'C:\\Node\\node.exe'){exit 3};$p.CommandLine='node C:\\HomeGuard\\worker.js-other';if(Test-HomeGuardProcess $p $root $entry 'C:\\Node\\node.exe'){exit 4}`;
+ const result=spawnSync('powershell.exe',['-NoProfile','-Command',script],{encoding:'utf8',windowsHide:true});assert.equal(result.status,0,result.stderr);
+});

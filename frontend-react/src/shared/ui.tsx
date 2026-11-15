@@ -1,13 +1,184 @@
-import type {ReactNode} from 'react';
-import {AlertCircle,ArrowUpRight,Check,LoaderCircle,RefreshCw} from 'lucide-react';
-import {Link} from 'react-router-dom';
-export const dateTime=(value:string)=>new Intl.DateTimeFormat('es-BO',{timeZone:'America/La_Paz',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(value));
-export const labels:Record<string,string>={NEW:'Nuevo',ACKNOWLEDGED:'Revisado',RESOLVED:'Resuelto',FALSE_POSITIVE:'Falsa alarma',SECURITY:'Seguridad',MOVEMENT:'Movimientos',EMERGENCY:'Emergencia',SYSTEM:'Sistema',LIVE:'En vivo',REPLAY:'Grabación',SIMULATED:'Simulación',CRITICAL:'Crítica',WARNING:'Atención',INFO:'Información',PENDING_RESPONSE:'Esperando respuesta',CANCELLED:'Cancelada',CALLING_SIMULATED:'Llamada simulada',CONNECTED_SIMULATED:'En atención',CLOSED:'Cerrada',FAILED:'Falló',NEEDS_REVIEW:'Requiere revisión',ONLINE:'En línea',OFFLINE:'Sin conexión',NOT_REQUESTED:'No solicitado',PENDING:'Preparando',READY:'Disponible',PARTIAL:'Parcial',EXPIRED:'Vencido',DELETED:'Eliminado',REQUESTED:'Solicitado',CONFIRMED:'Confirmado',QUEUED:'Pendiente',RUNNING:'En proceso',COMPLETED:'Completado',UNKNOWN:'Sin confirmación',SENT:'Aceptado por proveedor',SKIPPED:'Omitido'};
-export function Badge({value}:{value:string}){return <span className={`badge badge-${value.toLowerCase()}`}>{labels[value]||value}</span>;}
-export function PageTitle({eyebrow,title,description,action}:{eyebrow?:string;title:string;description:string;action?:ReactNode}){return <div className="page-title"><div>{eyebrow&&<p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1><p className="muted">{description}</p></div>{action}</div>;}
-export function Panel({title,description,children,action,className=''}:{title?:string;description?:string;children:ReactNode;action?:ReactNode;className?:string}){return <section className={`panel ${className}`}>{title&&<div className="panel-head"><div><h2>{title}</h2>{description&&<p className="muted text-small">{description}</p>}</div>{action}</div>}{children}</section>;}
-export function Notice({children,tone='info'}:{children:ReactNode;tone?:'info'|'error'|'success'}){return <div className={`notice notice-${tone}`} role={tone==='error'?'alert':'status'}>{tone==='success'?<Check size={18}/>:<AlertCircle size={18}/>}<div>{children}</div></div>;}
-export function Empty({icon,title,description,action}:{icon:ReactNode;title:string;description:string;action?:ReactNode}){return <div className="empty"><div className="empty-icon">{icon}</div><h3>{title}</h3><p>{description}</p>{action}</div>;}
-export function Loading(){return <div className="loading" role="status"><LoaderCircle className="spin" size={20}/>Cargando información…</div>;}
-export function ResourceError({message,retry}:{message:string;retry:()=>void}){return <Notice tone="error"><p>{message}</p><button className="text-button" onClick={retry}><RefreshCw size={14}/>Volver a intentar</button></Notice>;}
-export function SeeAll({to,children}:{to:string;children:ReactNode}){return <Link className="text-button" to={to}>{children}<ArrowUpRight size={16}/></Link>;}
+/* eslint-disable react-refresh/only-export-components -- Shared UI/session exports are intentionally colocated; development refresh may reload this module. */
+import type { ReactNode } from "react";
+import {
+  AlertCircle,
+  ArrowUpRight,
+  Check,
+  LoaderCircle,
+  RefreshCw,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+export const dateTime = (value: string) =>
+  new Intl.DateTimeFormat("es-BO", {
+    timeZone: "America/La_Paz",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+export const labels: Record<string, string> = {
+  NEW: "Nuevo",
+  ACKNOWLEDGED: "Revisado",
+  RESOLVED: "Resuelto",
+  FALSE_POSITIVE: "Falsa alarma",
+  SECURITY: "Seguridad",
+  MOVEMENT: "Movimientos",
+  EMERGENCY: "Emergencia",
+  SYSTEM: "Sistema",
+  LIVE: "En vivo",
+  REPLAY: "Grabación",
+  SIMULATED: "Simulación",
+  CRITICAL: "Crítica",
+  WARNING: "Atención",
+  INFO: "Información",
+  PENDING_RESPONSE: "Esperando respuesta",
+  CANCELLED: "Cancelada",
+  CALLING_SIMULATED: "Llamada simulada",
+  CONNECTED_SIMULATED: "En atención",
+  CLOSED: "Cerrada",
+  FAILED: "Falló",
+  NEEDS_REVIEW: "Requiere revisión",
+  ONLINE: "En línea",
+  OFFLINE: "Sin conexión",
+  NOT_REQUESTED: "No solicitado",
+  PENDING: "Preparando",
+  READY: "Disponible",
+  PARTIAL: "Parcial",
+  EXPIRED: "Vencido",
+  DELETED: "Eliminado",
+  REQUESTED: "Solicitado",
+  CONFIRMED: "Confirmado",
+  QUEUED: "Pendiente",
+  RUNNING: "En proceso",
+  COMPLETED: "Completado",
+  UNKNOWN: "Sin confirmación",
+  SENT: "Aceptado por proveedor",
+  SKIPPED: "Omitido",
+};
+export function Badge({ value }: { value: string }) {
+  return (
+    <span className={`badge badge-${value.toLowerCase()}`}>
+      {labels[value] || value}
+    </span>
+  );
+}
+export function PageTitle({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow?: string;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="page-title">
+      <div>
+        {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+        <h1>{title}</h1>
+        <p className="muted">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+export function Panel({
+  title,
+  description,
+  children,
+  action,
+  className = "",
+}: {
+  title?: string;
+  description?: string;
+  children: ReactNode;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`panel ${className}`}>
+      {title && (
+        <div className="panel-head">
+          <div>
+            <h2>{title}</h2>
+            {description && <p className="muted text-small">{description}</p>}
+          </div>
+          {action}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+export function Notice({
+  children,
+  tone = "info",
+}: {
+  children: ReactNode;
+  tone?: "info" | "error" | "success";
+}) {
+  return (
+    <div
+      className={`notice notice-${tone}`}
+      role={tone === "error" ? "alert" : "status"}
+    >
+      {tone === "success" ? <Check size={18} /> : <AlertCircle size={18} />}
+      <div>{children}</div>
+    </div>
+  );
+}
+export function Empty({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="empty">
+      <div className="empty-icon">{icon}</div>
+      <h3>{title}</h3>
+      <p>{description}</p>
+      {action}
+    </div>
+  );
+}
+export function Loading() {
+  return (
+    <div className="loading" role="status">
+      <LoaderCircle className="spin" size={20} />
+      Cargando información…
+    </div>
+  );
+}
+export function ResourceError({
+  message,
+  retry,
+}: {
+  message: string;
+  retry: () => void;
+}) {
+  return (
+    <Notice tone="error">
+      <p>{message}</p>
+      <button className="text-button" onClick={retry}>
+        <RefreshCw size={14} />
+        Volver a intentar
+      </button>
+    </Notice>
+  );
+}
+export function SeeAll({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <Link className="text-button" to={to}>
+      {children}
+      <ArrowUpRight size={16} />
+    </Link>
+  );
+}

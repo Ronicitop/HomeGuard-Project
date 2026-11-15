@@ -1,15 +1,214 @@
-import {useParams,Link} from 'react-router-dom';
-import {useState} from 'react';
-import {ArrowLeft,CheckCheck,Flag,Video,FileClock,ShieldCheck} from 'lucide-react';
-import {api,API_BASE,errorMessage,refreshData} from '../../shared/api';
-import {useResource} from '../../shared/useResource';
-import type {EventView,EventStatus} from '../../shared/models';
-import {Badge,PageTitle,Panel,Notice,Loading,ResourceError,Empty,dateTime,labels} from '../../shared/ui';
-interface Detail extends EventView{jobs:{id:string;kind:string;status:string;error_code:string|null}[];notifications:{id:string;status:string;error_code:string|null}[]}
-export function EventDetail(){
- const {id}=useParams();const resource=useResource<Detail>(`/events/${id}`,5000);const [message,setMessage]=useState(''),[busy,setBusy]=useState(false);const event=resource.data;
- const clip=useResource<{id:string;status:string}>(`/events/${id}/clip`,5000,Boolean(event?.decisions.clip_requested));
- async function update(status:EventStatus){if(!event)return;setBusy(true);setMessage('');try{await api.patch(`/events/${event.id}`,{status,expected_revision:event.revision});refreshData();}catch(e){setMessage(errorMessage(e));}finally{setBusy(false);}}
- if(resource.error)return <ResourceError message={resource.error} retry={resource.reload}/>;if(!event)return <Loading/>;
- return <><Link className="back-link" to="/events"><ArrowLeft size={16}/>Volver al historial</Link><PageTitle eyebrow="DETALLE DEL EVENTO" title={event.summary} description={`${dateTime(event.occurred_at)} · Hora de Bolivia`}/><div className="detail-badges"><Badge value={event.source}/><Badge value={event.category}/><Badge value={event.severity}/><Badge value={event.status}/></div>{message&&<Notice tone="error">{message}</Notice>}{event.late&&<Notice>Este evento llegó tarde o pertenece a una configuración anterior. Se conservó para revisión sin ejecutar acciones nuevas.</Notice>}<div className="content-columns"><div><Panel title="Evidencia del evento" description="Las grabaciones pueden tardar unos segundos en estar disponibles.">{!event.decisions.clip_requested?<Empty icon={<Video size={30}/>} title="Este evento no solicitó un clip" description="La opción de guardar evidencia estaba desactivada."/>:clip.data&&['READY','PARTIAL'].includes(clip.data.status)?<><video className="evidence-video" controls src={`${API_BASE}/clips/${clip.data.id}/content`}/><Badge value={clip.data.status}/></>:<Empty icon={<FileClock size={30}/>} title={event.jobs.some(j=>j.kind==='CLIP'&&j.status==='FAILED')?'No se pudo preparar el clip':'Clip pendiente'} description={clip.error?'El servicio de evidencia todavía no está disponible. El evento sigue guardado.':'Consultando la evidencia solicitada para este evento.'}/>}</Panel><Panel title="Acciones y entregas"><div className="delivery-list">{event.jobs.length?event.jobs.map(job=><div key={job.id}><span>{({PUSH:'Notificación',CLIP:'Clip de evidencia',ALARM:'Alarma',EMERGENCY:'Emergencia',VOICE:'Mensaje de voz',PUSH_DELIVERY:'Entrega al dispositivo'} as Record<string,string>)[job.kind]||job.kind}</span><div><Badge value={job.status}/>{job.error_code&&<small className="muted">{job.error_code}</small>}</div></div>):<p className="muted">Este evento solo conserva sus metadatos.</p>}</div><p className="text-small muted">Una notificación aceptada por el proveedor no confirma que haya sido leída.</p></Panel></div><div><Panel title="Revisar evento" description="Tu decisión queda registrada sin modificar la evidencia."><div className="stack"><button className="button primary" disabled={busy} onClick={()=>void update('ACKNOWLEDGED')}><CheckCheck size={18}/>Marcar como revisado</button><button className="button secondary" disabled={busy} onClick={()=>void update('RESOLVED')}><ShieldCheck size={18}/>Resolver evento</button><button className="button secondary" disabled={busy} onClick={()=>void update('FALSE_POSITIVE')}><Flag size={18}/>Marcar falsa alarma</button></div></Panel><Panel title="Contexto"><dl className="context-list"><dt>Origen</dt><dd>{labels[event.source]}</dd><dt>Identificador</dt><dd className="mono break-all">{event.id}</dd><dt>Recibido</dt><dd>{dateTime(event.received_at)}</dd><dt>Notificación solicitada</dt><dd>{event.decisions.notify_requested?'Sí':'No'}</dd><dt>Clip solicitado</dt><dd>{event.decisions.clip_requested?'Sí':'No'}</dd></dl></Panel></div></div></>;
+import { useParams, Link } from "react-router-dom";
+import { useState } from "react";
+import {
+  ArrowLeft,
+  CheckCheck,
+  Flag,
+  Video,
+  FileClock,
+  ShieldCheck,
+} from "lucide-react";
+import { api, API_BASE, errorMessage, refreshData } from "../../shared/api";
+import { useResource } from "../../shared/useResource";
+import type { EventView, EventStatus } from "../../shared/models";
+import {
+  Badge,
+  PageTitle,
+  Panel,
+  Notice,
+  Loading,
+  ResourceError,
+  Empty,
+  dateTime,
+  labels,
+} from "../../shared/ui";
+interface Detail extends EventView {
+  jobs: {
+    id: string;
+    kind: string;
+    status: string;
+    error_code: string | null;
+  }[];
+  notifications: { id: string; status: string; error_code: string | null }[];
+}
+export function EventDetail() {
+  const { id } = useParams();
+  const resource = useResource<Detail>(`/events/${id}`, 5000);
+  const [message, setMessage] = useState(""),
+    [busy, setBusy] = useState(false);
+  const event = resource.data;
+  const clip = useResource<{ id: string; status: string }>(
+    `/events/${id}/clip`,
+    5000,
+    Boolean(event?.decisions.clip_requested),
+  );
+  async function update(status: EventStatus) {
+    if (!event) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await api.patch(`/events/${event.id}`, {
+        status,
+        expected_revision: event.revision,
+      });
+      refreshData();
+    } catch (e) {
+      setMessage(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (resource.error)
+    return <ResourceError message={resource.error} retry={resource.reload} />;
+  if (!event) return <Loading />;
+  return (
+    <>
+      <Link className="back-link" to="/events">
+        <ArrowLeft size={16} />
+        Volver al historial
+      </Link>
+      <PageTitle
+        eyebrow="DETALLE DEL EVENTO"
+        title={event.summary}
+        description={`${dateTime(event.occurred_at)} · Hora de Bolivia`}
+      />
+      <div className="detail-badges">
+        <Badge value={event.source} />
+        <Badge value={event.category} />
+        <Badge value={event.severity} />
+        <Badge value={event.status} />
+      </div>
+      {message && <Notice tone="error">{message}</Notice>}
+      {event.late && (
+        <Notice>
+          Este evento llegó tarde o pertenece a una configuración anterior. Se
+          conservó para revisión sin ejecutar acciones nuevas.
+        </Notice>
+      )}
+      <div className="content-columns">
+        <div>
+          <Panel
+            title="Evidencia del evento"
+            description="Las grabaciones pueden tardar unos segundos en estar disponibles."
+          >
+            {!event.decisions.clip_requested ? (
+              <Empty
+                icon={<Video size={30} />}
+                title="Este evento no solicitó un clip"
+                description="La opción de guardar evidencia estaba desactivada."
+              />
+            ) : clip.data && ["READY", "PARTIAL"].includes(clip.data.status) ? (
+              <>
+                <video
+                  className="evidence-video"
+                  controls
+                  src={`${API_BASE}/clips/${clip.data.id}/content`}
+                />
+                <Badge value={clip.data.status} />
+              </>
+            ) : (
+              <Empty
+                icon={<FileClock size={30} />}
+                title={
+                  event.jobs.some(
+                    (j) => j.kind === "CLIP" && j.status === "FAILED",
+                  )
+                    ? "No se pudo preparar el clip"
+                    : "Clip pendiente"
+                }
+                description={
+                  clip.error
+                    ? "El servicio de evidencia todavía no está disponible. El evento sigue guardado."
+                    : "Consultando la evidencia solicitada para este evento."
+                }
+              />
+            )}
+          </Panel>
+          <Panel title="Acciones y entregas">
+            <div className="delivery-list">
+              {event.jobs.length ? (
+                event.jobs.map((job) => (
+                  <div key={job.id}>
+                    <span>
+                      {(
+                        {
+                          PUSH: "Notificación",
+                          CLIP: "Clip de evidencia",
+                          ALARM: "Alarma",
+                          EMERGENCY: "Emergencia",
+                          VOICE: "Mensaje de voz",
+                          PUSH_DELIVERY: "Entrega al dispositivo",
+                        } as Record<string, string>
+                      )[job.kind] || job.kind}
+                    </span>
+                    <div>
+                      <Badge value={job.status} />
+                      {job.error_code && (
+                        <small className="muted">{job.error_code}</small>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="muted">
+                  Este evento solo conserva sus metadatos.
+                </p>
+              )}
+            </div>
+            <p className="text-small muted">
+              Una notificación aceptada por el proveedor no confirma que haya
+              sido leída.
+            </p>
+          </Panel>
+        </div>
+        <div>
+          <Panel
+            title="Revisar evento"
+            description="Tu decisión queda registrada sin modificar la evidencia."
+          >
+            <div className="stack">
+              <button
+                className="button primary"
+                disabled={busy}
+                onClick={() => void update("ACKNOWLEDGED")}
+              >
+                <CheckCheck size={18} />
+                Marcar como revisado
+              </button>
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={() => void update("RESOLVED")}
+              >
+                <ShieldCheck size={18} />
+                Resolver evento
+              </button>
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={() => void update("FALSE_POSITIVE")}
+              >
+                <Flag size={18} />
+                Marcar falsa alarma
+              </button>
+            </div>
+          </Panel>
+          <Panel title="Contexto">
+            <dl className="context-list">
+              <dt>Origen</dt>
+              <dd>{labels[event.source]}</dd>
+              <dt>Identificador</dt>
+              <dd className="mono break-all">{event.id}</dd>
+              <dt>Recibido</dt>
+              <dd>{dateTime(event.received_at)}</dd>
+              <dt>Notificación solicitada</dt>
+              <dd>{event.decisions.notify_requested ? "Sí" : "No"}</dd>
+              <dt>Clip solicitado</dt>
+              <dd>{event.decisions.clip_requested ? "Sí" : "No"}</dd>
+            </dl>
+          </Panel>
+        </div>
+      </div>
+    </>
+  );
 }

@@ -1,0 +1,2 @@
+-- Instalador antiguo sustituido por backend-next/migrations y npm run seed:demo.
+-- Ver LEEME-LOCAL.md; no insertar contraseñas planas ni resetear datos.

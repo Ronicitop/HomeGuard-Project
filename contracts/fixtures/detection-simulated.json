@@ -16,11 +16,7 @@
   "confidence": 0.82,
   "local_track_id": "track-17",
   "evidence": {
-    "frame_times_ms": [
-      0,
-      500,
-      1000
-    ],
+    "frame_times_ms": [0, 500, 1000],
     "observability": "VISIBLE",
     "snapshot_ref": "snap-demo-001",
     "segment_hold_ref": "hold-demo-001"

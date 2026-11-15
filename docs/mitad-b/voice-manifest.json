@@ -1,0 +1,19 @@
+{
+  "repository": "rhasspy/piper-voices",
+  "revision": "e9ab671f2a0e50a701b34361136ba3e6a3a9eb0c",
+  "voice": "es_ES-davefx-medium",
+  "files": [
+    {
+      "name": "es_ES-davefx-medium.onnx",
+      "sha256": "D2C9224E122321AAC3C33343957FFF4D0F465226CB74C66B0F520CA3F8C0DD07"
+    },
+    {
+      "name": "es_ES-davefx-medium.onnx.json",
+      "sha256": "531C4051502E1ACBC10B42437F11679BFCE9E3919E1796E51FABD73E01E7FD2E"
+    },
+    {
+      "name": "MODEL_CARD",
+      "sha256": "2D55D0D84100CDE9D9ED88866C2625C89D333A45507D88AA8BAE40F6DE94C134"
+    }
+  ]
+}

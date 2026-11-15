@@ -1,0 +1,3085 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HomeGuard · Mitad B",
+    "version": "1.0.0",
+    "description": "Demo universitaria, Bolivia. Contrato implementado por B. A incorpora cámaras/personas/reglas/clips mediante sus módulos y migraciones; no se anuncia su disponibilidad antes de integrarlos."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3000/api/v1"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "Iniciar sesión web o Android",
+        "operationId": "post__auth_login",
+        "tags": ["auth"],
+        "description": "Web: cookie HttpOnly SameSite Lax y CSRF. Android: token opaco solo en SecureStore. Rate limit 5 intentos/cuenta/15 min.",
+        "security": [],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    },
+                    "csrf_token": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Consultar sesión efectiva",
+        "operationId": "get__auth_me",
+        "tags": ["auth"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Revocar sesión actual",
+        "operationId": "post__auth_logout",
+        "tags": ["auth"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "summary": "Resumen del hogar",
+        "operationId": "get__dashboard",
+        "tags": ["dashboard"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Diagnóstico autenticado sin secretos",
+        "operationId": "get__health",
+        "tags": ["health"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/events": {
+      "get": {
+        "summary": "Historial paginado",
+        "operationId": "get__events",
+        "tags": ["events"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Event"
+                      }
+                    },
+                    "next_cursor": {
+                      "type": ["string", "null"]
+                    }
+                  },
+                  "required": ["items", "next_cursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/events/{id}": {
+      "get": {
+        "summary": "Detalle con trabajos y entregas",
+        "operationId": "get__events_id",
+        "tags": ["events"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      },
+      "patch": {
+        "summary": "Revisar/resolver/falsa alarma",
+        "operationId": "patch__events_id",
+        "tags": ["events"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["ACKNOWLEDGED", "RESOLVED", "FALSE_POSITIVE"]
+                  },
+                  "expected_revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["status", "expected_revision"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/demo/events": {
+      "post": {
+        "summary": "Crear evento explícitamente simulado",
+        "operationId": "post__demo_events",
+        "tags": ["demo"],
+        "description": "Solo administrador y HG_DEMO_MODE. Sin cámara asociada; no produce un clip inventado ni representa detección real.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 150
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scenario": {
+                    "type": "string",
+                    "enum": ["INTRUSION", "POSSIBLE_FALL", "SYSTEM"]
+                  },
+                  "notify_enabled": {
+                    "type": "boolean"
+                  },
+                  "save_clip_enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["scenario", "notify_enabled", "save_clip_enabled"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mode": {
+      "get": {
+        "summary": "Consultar modo",
+        "operationId": "get__mode",
+        "tags": ["mode"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      },
+      "patch": {
+        "summary": "Cambiar modo con revisión",
+        "operationId": "patch__mode",
+        "tags": ["mode"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": ["HOME", "AWAY", "DISARMED"]
+                  },
+                  "expected_revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["mode", "expected_revision"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/actuators": {
+      "get": {
+        "summary": "Actuadores y último comando",
+        "operationId": "get__actuators",
+        "tags": ["actuators"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/actuators/{code}/commands": {
+      "post": {
+        "summary": "Solicitar comando al simulador",
+        "operationId": "post__actuators_code_commands",
+        "tags": ["actuators"],
+        "description": "REQUESTED no equivale a encendido confirmado. Solo ACK autenticado del simulador produce CONFIRMED.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 150
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Command"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": ["ON", "OFF"]
+                  }
+                },
+                "required": ["state"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergency-profile": {
+      "get": {
+        "summary": "Consultar emergency-profile",
+        "operationId": "get__emergency-profile",
+        "tags": ["emergency-profile"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      },
+      "put": {
+        "summary": "Guardar emergency-profile",
+        "operationId": "put__emergency-profile",
+        "tags": ["emergency-profile"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergency-policy": {
+      "get": {
+        "summary": "Consultar emergency-policy",
+        "operationId": "get__emergency-policy",
+        "tags": ["emergency-policy"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      },
+      "put": {
+        "summary": "Guardar emergency-policy",
+        "operationId": "put__emergency-policy",
+        "tags": ["emergency-policy"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergencies": {
+      "get": {
+        "summary": "Listar incidentes",
+        "operationId": "get__emergencies",
+        "tags": ["emergencies"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Incident"
+                      }
+                    },
+                    "next_cursor": {
+                      "type": ["string", "null"]
+                    }
+                  },
+                  "required": ["items", "next_cursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/emergencies/{id}": {
+      "get": {
+        "summary": "Consultar incidente",
+        "operationId": "get__emergencies_id",
+        "tags": ["emergencies"],
+        "description": "Perfil y transcripción privada solo para administrador. Residente puede responder al incidente.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Incident"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/emergencies/{id}/respond": {
+      "post": {
+        "summary": "Confirmar bienestar o solicitar ayuda simulada",
+        "operationId": "post__emergencies_id_respond",
+        "tags": ["emergencies"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 150
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Incident"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "response": {
+                    "type": "string",
+                    "enum": ["I_AM_OK", "REQUEST_HELP"]
+                  },
+                  "expected_revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["response", "expected_revision"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergencies/{id}/simulated-call/accept": {
+      "post": {
+        "summary": "Operador: simulated-call/accept",
+        "operationId": "post__emergencies_id_simulated-call_accept",
+        "tags": ["emergencies"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Incident"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expected_revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["expected_revision"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergencies/{id}/close": {
+      "post": {
+        "summary": "Operador: close",
+        "operationId": "post__emergencies_id_close",
+        "tags": ["emergencies"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Incident"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expected_revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["expected_revision"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergencies/{id}/simulated-call/audio": {
+      "get": {
+        "summary": "Escuchar WAV privado de Piper",
+        "operationId": "get__emergencies_id_simulated-call_audio",
+        "tags": ["emergencies"],
+        "description": "Administrador demo.operator. Se verifica hogar. No permite elegir ruta de archivo.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/notification-preferences": {
+      "get": {
+        "summary": "Consultar preferencias",
+        "operationId": "get__notification-preferences",
+        "tags": ["notification-preferences"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      },
+      "patch": {
+        "summary": "Actualizar preferencias",
+        "operationId": "patch__notification-preferences",
+        "tags": ["notification-preferences"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/push-devices": {
+      "get": {
+        "summary": "Listar dispositivos sin tokens",
+        "operationId": "get__push-devices",
+        "tags": ["push-devices"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      },
+      "post": {
+        "summary": "Registrar instalación Android",
+        "operationId": "post__push-devices",
+        "tags": ["push-devices"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushDeviceWrite"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Desactivar instalación",
+        "operationId": "delete__push-devices",
+        "tags": ["push-devices"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "installation_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["installation_id"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/members": {
+      "get": {
+        "summary": "Listar miembros administrativos",
+        "operationId": "get__members",
+        "tags": ["members"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      },
+      "post": {
+        "summary": "Crear miembro con contraseña hasheada",
+        "operationId": "post__members",
+        "tags": ["members"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberWrite"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/members/{user_id}": {
+      "patch": {
+        "summary": "Cambiar rol o acceso",
+        "operationId": "patch__members_user_id",
+        "tags": ["members"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Obligatorio para sesiones cookie; Android bearer no lo usa."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": ["ADMINISTRADOR", "RESIDENTE", "INVITADO"]
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "expected_revision": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["role", "enabled", "expected_revision"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/legacy/status": {
+      "get": {
+        "summary": "Adaptador del sistema IoT existente",
+        "operationId": "get__legacy_status",
+        "tags": ["legacy"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/legacy/devices": {
+      "get": {
+        "summary": "Adaptador del sistema IoT existente",
+        "operationId": "get__legacy_devices",
+        "tags": ["legacy"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/legacy/thresholds": {
+      "get": {
+        "summary": "Adaptador del sistema IoT existente",
+        "operationId": "get__legacy_thresholds",
+        "tags": ["legacy"],
+        "description": "Hogar y rol se obtienen exclusivamente de la sesión.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    },
+    "/stream": {
+      "get": {
+        "summary": "Actualizaciones SSE autenticadas",
+        "operationId": "get__stream",
+        "tags": ["stream"],
+        "description": "Last-Event-ID numérico. Eventos mínimos: event.created/updated, clip.updated, emergency.updated, notification.updated, health.updated y sync_required. No usar SSE en segundo plano móvil.",
+        "security": [
+          {
+            "cookieSession": []
+          },
+          {
+            "bearerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado confirmado por el servidor",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Entrada inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sesión vencida/revocada"
+          },
+          "403": {
+            "description": "Permiso u origen insuficiente"
+          },
+          "404": {
+            "description": "Recurso no accesible en este hogar"
+          },
+          "409": {
+            "description": "Conflicto de revisión o idempotencia"
+          },
+          "503": {
+            "description": "Servicio necesario no disponible"
+          }
+        },
+        "x-owner": "B"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "hg_session"
+      },
+      "bearerSession": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "apellido": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "rol": {
+            "type": "string",
+            "enum": ["ADMINISTRADOR", "RESIDENTE", "INVITADO"]
+          },
+          "household_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "csrf_token": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "nombre",
+          "apellido",
+          "email",
+          "rol",
+          "household_id"
+        ],
+        "additionalProperties": false
+      },
+      "Login": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "platform": {
+            "type": "string",
+            "enum": ["web", "mobile"]
+          }
+        },
+        "required": ["email", "password"],
+        "additionalProperties": false
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "household_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "camera_id": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "rule_version_id": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["LIVE", "REPLAY", "SIMULATED"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["SECURITY", "MOVEMENT", "EMERGENCY", "SYSTEM"]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["INFO", "WARNING", "CRITICAL"]
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["NEW", "ACKNOWLEDGED", "RESOLVED", "FALSE_POSITIVE"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "decisions": {
+            "type": "object"
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "producer": {
+            "type": "object"
+          },
+          "confidence": {
+            "type": ["number", "null"]
+          },
+          "late": {
+            "type": "boolean"
+          },
+          "clip_status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "household_id",
+          "source",
+          "category",
+          "summary",
+          "occurred_at",
+          "status",
+          "revision",
+          "decisions"
+        ],
+        "additionalProperties": false
+      },
+      "Mode": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["HOME", "AWAY", "DISARMED"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["mode", "revision"],
+        "additionalProperties": false
+      },
+      "Command": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["REQUESTED", "CONFIRMED", "FAILED", "CANCELLED"]
+          },
+          "requested_state": {
+            "type": "string",
+            "enum": ["ON", "OFF"]
+          },
+          "confirmed_state": {
+            "type": ["string", "null"]
+          },
+          "confirmation_source": {
+            "type": ["string", "null"]
+          },
+          "source": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "Incident": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PENDING_RESPONSE",
+              "CANCELLED",
+              "ESCALATED",
+              "CALLING_SIMULATED",
+              "CONNECTED_SIMULATED",
+              "CLOSED",
+              "FAILED",
+              "NEEDS_REVIEW"
+            ]
+          },
+          "state_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "response_deadline": {
+            "type": "string"
+          },
+          "cancellation_requested": {
+            "type": "boolean"
+          },
+          "call": {
+            "type": ["object", "null"]
+          }
+        }
+      },
+      "ProfileWrite": {
+        "type": "object",
+        "properties": {
+          "contact_name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100
+          },
+          "address": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 300
+          },
+          "access_notes": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "phone": {
+                  "type": "string"
+                }
+              },
+              "required": ["name", "phone"],
+              "additionalProperties": false
+            }
+          },
+          "fictitious_data_confirmed": {
+            "const": true
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "contact_name",
+          "address",
+          "access_notes",
+          "contacts",
+          "fictitious_data_confirmed",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "PolicyWrite": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "immobility_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 120
+          },
+          "response_seconds": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 300
+          },
+          "transport": {
+            "const": "SIMULATED"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "enabled",
+          "immobility_seconds",
+          "response_seconds",
+          "transport",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "PreferencesWrite": {
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["SECURITY", "MOVEMENT", "EMERGENCY", "SYSTEM"]
+            }
+          },
+          "quiet_start": {
+            "type": ["string", "null"]
+          },
+          "quiet_end": {
+            "type": ["string", "null"]
+          },
+          "critical_demo_override": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "categories",
+          "quiet_start",
+          "quiet_end",
+          "critical_demo_override",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "PushDeviceWrite": {
+        "type": "object",
+        "properties": {
+          "installation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "token": {
+            "type": "string",
+            "description": "ExpoPushToken. Nunca devolver ni registrar en logs."
+          },
+          "platform": {
+            "const": "android"
+          }
+        },
+        "required": ["installation_id", "token", "platform"],
+        "additionalProperties": false
+      },
+      "MemberWrite": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string"
+          },
+          "apellido": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 1024
+          },
+          "role": {
+            "type": "string",
+            "enum": ["ADMINISTRADOR", "RESIDENTE", "INVITADO"]
+          }
+        },
+        "required": ["nombre", "apellido", "email", "password", "role"],
+        "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "demo_mode": {
+            "type": "boolean"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "integrations": {
+            "type": "object"
+          },
+          "pending_jobs": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "database",
+          "demo_mode",
+          "services",
+          "integrations",
+          "pending_jobs"
+        ],
+        "additionalProperties": false
+      },
+      "EventDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "household_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "camera_id": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "rule_version_id": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["LIVE", "REPLAY", "SIMULATED"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["SECURITY", "MOVEMENT", "EMERGENCY", "SYSTEM"]
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["INFO", "WARNING", "CRITICAL"]
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["NEW", "ACKNOWLEDGED", "RESOLVED", "FALSE_POSITIVE"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "decisions": {
+            "type": "object"
+          },
+          "evidence": {
+            "type": "object"
+          },
+          "producer": {
+            "type": "object"
+          },
+          "confidence": {
+            "type": ["number", "null"]
+          },
+          "late": {
+            "type": "boolean"
+          },
+          "clip_status": {
+            "type": "string"
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "notifications": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "household_id",
+          "source",
+          "category",
+          "summary",
+          "occurred_at",
+          "status",
+          "revision",
+          "decisions"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

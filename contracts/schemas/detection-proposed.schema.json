@@ -59,26 +59,13 @@
       "format": "date-time"
     },
     "source": {
-      "enum": [
-        "LIVE",
-        "REPLAY",
-        "SIMULATED"
-      ]
+      "enum": ["LIVE", "REPLAY", "SIMULATED"]
     },
     "category": {
-      "enum": [
-        "SECURITY",
-        "MOVEMENT",
-        "EMERGENCY",
-        "SYSTEM"
-      ]
+      "enum": ["SECURITY", "MOVEMENT", "EMERGENCY", "SYSTEM"]
     },
     "severity": {
-      "enum": [
-        "INFO",
-        "WARNING",
-        "CRITICAL"
-      ]
+      "enum": ["INFO", "WARNING", "CRITICAL"]
     },
     "event_type": {
       "type": "string",
@@ -102,17 +89,11 @@
     },
     "evidence": {
       "type": "object",
-      "required": [
-        "observability"
-      ],
+      "required": ["observability"],
       "additionalProperties": false,
       "properties": {
         "observability": {
-          "enum": [
-            "VISIBLE",
-            "PARTIAL",
-            "LOST"
-          ]
+          "enum": ["VISIBLE", "PARTIAL", "LOST"]
         },
         "frame_times_ms": {
           "type": "array",
@@ -123,17 +104,11 @@
           }
         },
         "snapshot_ref": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": ["string", "null"],
           "maxLength": 128
         },
         "segment_hold_ref": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": ["string", "null"],
           "maxLength": 128
         },
         "visible_from": {
@@ -157,12 +132,7 @@
     },
     "producer": {
       "type": "object",
-      "required": [
-        "name",
-        "version",
-        "model_id",
-        "config_revision"
-      ],
+      "required": ["name", "version", "model_id", "config_revision"],
       "additionalProperties": false,
       "properties": {
         "name": {

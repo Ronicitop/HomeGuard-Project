@@ -6,12 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
     "test": "vitest run",
     "migrate": "tsx scripts/migrate.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "worker": "tsx workers/eventProcessor.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "backup": "tsx scripts/backup.ts",
+    "backup:verify": "tsx scripts/verify-backup.ts",
+    "doctor": "tsx scripts/doctor.ts",
+    "simulate": "tsx scripts/simulate.ts"
   },
   "dependencies": {
     "ajv": "8.20.0",
