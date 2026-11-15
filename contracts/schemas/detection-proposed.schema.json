@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hg:detection.proposed.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "message_id",
+    "event_id",
+    "household_id",
+    "camera_id",
+    "stream_session_id",
+    "rule_version_id",
+    "schema_version",
+    "message_type",
+    "occurred_at",
+    "source",
+    "category",
+    "severity",
+    "event_type",
+    "summary",
+    "confidence",
+    "local_track_id",
+    "evidence",
+    "producer"
+  ],
+  "properties": {
+    "message_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "household_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "camera_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "stream_session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "rule_version_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "message_type": {
+      "const": "detection.proposed.v1"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "enum": [
+        "LIVE",
+        "REPLAY",
+        "SIMULATED"
+      ]
+    },
+    "category": {
+      "enum": [
+        "SECURITY",
+        "MOVEMENT",
+        "EMERGENCY",
+        "SYSTEM"
+      ]
+    },
+    "severity": {
+      "enum": [
+        "INFO",
+        "WARNING",
+        "CRITICAL"
+      ]
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "local_track_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "observability"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "observability": {
+          "enum": [
+            "VISIBLE",
+            "PARTIAL",
+            "LOST"
+          ]
+        },
+        "frame_times_ms": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "snapshot_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "segment_hold_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "visible_from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "visible_until": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "immobility_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 300
+        },
+        "pose_profile_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "producer": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "model_id",
+        "config_revision"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "model_id": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "config_revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}
