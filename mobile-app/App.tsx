@@ -243,15 +243,20 @@ export default function App() {
     }
   }
   async function logout() {
+    let serverRevoked = false;
     try {
-      await api("push-devices", {
-        method: "DELETE",
+      await api("auth/logout", {
+        method: "POST",
         body: JSON.stringify({ installation_id: await installationId() }),
       });
-      await api("auth/logout", { method: "POST" });
+      serverRevoked = true;
     } catch {}
     expire();
     setRoute({ screen: "home" });
+    if (!serverRevoked)
+      setNotice(
+        "Se cerró la sesión en este teléfono. No se pudo confirmar la baja en el servidor; revisá la conexión y desactivá esta instalación desde la web.",
+      );
   }
   if (!ready)
     return (

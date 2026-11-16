@@ -39,7 +39,12 @@ export async function authRoute(
   if (path === "auth/me" && request.method === "GET")
     return json(await currentUser(await requireSession(request)));
   if (path === "auth/logout" && request.method === "POST") {
-    await revokeSession(await requireSession(request));
+    const ctx = await requireSession(request);
+    const input = await body(
+      request,
+      z.object({ installation_id: z.uuid().optional() }).strict(),
+    );
+    await revokeSession(ctx, input.installation_id);
     return json({ success: true }, 200, {
       "Set-Cookie": "hg_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
     });

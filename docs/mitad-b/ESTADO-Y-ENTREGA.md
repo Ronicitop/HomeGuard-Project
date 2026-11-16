@@ -2,6 +2,8 @@
 
 Fecha: 15 de noviembre de 2026. Rama local: `feat/mitad-b`. Se modifica el repositorio original; no es una aplicación independiente.
 
+Resultados finales, correcciones y límites de revisión: [VERIFICACION.md](VERIFICACION.md).
+
 ## Implementación disponible
 
 - Sesiones reales de ocho horas, contraseñas scrypt, cookie HttpOnly y CSRF en web, bearer en Android, revocación, roles y pertenencia al hogar. El cliente no decide el rol ni el ID efectivo del usuario.

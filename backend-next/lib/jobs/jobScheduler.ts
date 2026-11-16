@@ -19,14 +19,18 @@ export async function recoverExhaustedJobs() {
     "UPDATE hg_outbox SET status='FAILED',error_code='LEASE_EXHAUSTED',lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE status='RUNNING' AND attempts>=4 AND lease_until<now()",
   );
   await pool.query(
-    "UPDATE hg_actuator_commands c SET status='FAILED' WHERE status='REQUESTED' AND EXISTS(SELECT 1 FROM hg_outbox j WHERE j.kind='ACTUATOR' AND j.payload->>'command_id'=c.id::text AND j.status IN ('FAILED','UNKNOWN','CANCELLED'))",
+    "UPDATE hg_actuator_commands c SET status='FAILED' WHERE status='REQUESTED' AND EXISTS(SELECT 1 FROM hg_outbox j WHERE j.kind='ACTUATOR' AND j.household_id=c.household_id AND j.payload->>'command_id'=c.id::text AND j.status IN ('FAILED','UNKNOWN','CANCELLED'))",
+  );
+  await pool.query(
+    "UPDATE hg_notifications n SET status=CASE WHEN n.status='SENDING' THEN 'UNKNOWN' ELSE 'FAILED' END,error_code='JOB_RETRIES_EXHAUSTED' FROM hg_outbox j WHERE j.kind='PUSH_DELIVERY' AND j.status='FAILED' AND n.household_id=j.household_id AND n.id::text=j.payload->>'notification_id' AND n.status IN ('QUEUED','SENDING')",
   );
 }
 async function effectStillAllowed(event: any, flag: string) {
   if (
     !event.decisions?.[flag] ||
     event.late ||
-    Date.now() - new Date(event.occurred_at).getTime() > 30000
+    Date.now() - new Date(event.occurred_at).getTime() >
+      (flag === "notify_requested" ? 300000 : 30000)
   )
     return false;
   if (!event.rule_version_id) return event.source === "SIMULATED";
@@ -45,11 +49,19 @@ async function effectStillAllowed(event: any, flag: string) {
         notify_requested: "notify_enabled",
       } as Record<string, string>
     )[flag];
+    const mode = (
+      await tx.query("SELECT mode FROM hg_modes WHERE household_id=$1", [
+        event.household_id,
+      ])
+    ).rows[0]?.mode;
+    const critical = flag !== "notify_requested";
     return (
       c.rule.enabled &&
       c.camera.enabled &&
       c.rule.active_version_id === event.rule_version_id &&
       c.version.status === "VALIDATED" &&
+      (!critical || c.version.definition.modes.includes(mode)) &&
+      (flag !== "alarm_requested" || mode !== "DISARMED") &&
       c.version.definition.actions?.[action] === true
     );
   } finally {
@@ -111,9 +123,61 @@ export async function runJob(job: any, transport: JobTransport) {
         await requestAutomaticCommand(event, "ACT_SIRENA_01", "ON");
       return;
     }
-    case "ACTUATOR":
+    case "ACTUATOR": {
+      const cmd = (
+        await pool.query(
+          "SELECT * FROM hg_actuator_commands WHERE id=$1 AND household_id=$2",
+          [job.payload.command_id, job.household_id],
+        )
+      ).rows[0];
+      if (!cmd) fail(404, "COMMAND_NOT_FOUND", "Comando no encontrado.");
+      if (cmd.status !== "REQUESTED") return;
+      if (cmd.source === "AUTO_EVENT") {
+        const mode = (
+          await pool.query("SELECT mode FROM hg_modes WHERE household_id=$1", [
+            job.household_id,
+          ])
+        ).rows[0]?.mode;
+        let allowed = Boolean(
+          event &&
+          !event.late &&
+          Date.now() - new Date(event.occurred_at).getTime() <= 30000,
+        );
+        if (allowed && event.rule_version_id)
+          allowed = await effectStillAllowed(event, "alarm_requested");
+        else if (allowed && event.event_type === "IOT_INTRUSION")
+          allowed = mode === "AWAY";
+        else if (allowed)
+          allowed = ["IOT_FIRE", "IOT_WATER"].includes(event.event_type);
+        const manualOverride = (
+          await pool.query(
+            "SELECT 1 FROM hg_actuator_commands WHERE household_id=$1 AND legacy_code=$2 AND source LIKE 'MANUAL%' AND created_at>$3 AND status IN ('REQUESTED','CONFIRMED') LIMIT 1",
+            [job.household_id, cmd.legacy_code, cmd.created_at],
+          )
+        ).rowCount;
+        if (!allowed || manualOverride) {
+          await pool.query(
+            "UPDATE hg_actuator_commands SET status='CANCELLED' WHERE id=$1 AND status='REQUESTED'",
+            [cmd.id],
+          );
+          await pool.query(
+            "INSERT INTO hg_audit(household_id,action,entity_id,after_data) VALUES($1,'actuator.dispatch_cancelled',$2,$3)",
+            [
+              job.household_id,
+              cmd.id,
+              JSON.stringify({
+                reason: manualOverride
+                  ? "MANUAL_OVERRIDE"
+                  : "RULE_MODE_OR_EVENT_CHANGED",
+              }),
+            ],
+          );
+          return;
+        }
+      }
       await transport.requestCommand(job);
       return;
+    }
     case "CLIP":
       if (!event?.camera_id)
         fail(

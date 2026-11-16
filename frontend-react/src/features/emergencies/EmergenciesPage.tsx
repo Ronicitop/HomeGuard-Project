@@ -41,13 +41,25 @@ export function EmergenciesPage() {
   const incidents = useResource<Page<IncidentView>>("/emergencies", 5000),
     policy = useResource<EmergencyPolicy>("/emergency-policy", 0),
     profile = useResource<EmergencyProfile>("/emergency-profile", 0, admin);
-  const [draftOverride, setDraft] = useState<EmergencyProfile|null>(null),
-    [policyOverride, setPolicyDraft] = useState<EmergencyPolicy|null>(null),
+  const [draftOverride, setDraft] = useState<EmergencyProfile | null>(null),
+    [policyOverride, setPolicyDraft] = useState<EmergencyPolicy | null>(null),
     [busy, setBusy] = useState(""),
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
-  const draft=draftOverride&&draftOverride.revision===(profile.data?.revision||0)?draftOverride:profile.data||emptyProfile;
-  const policyDraft:EmergencyPolicy=policyOverride&&policyOverride.revision===(policy.data?.revision||0)?policyOverride:policy.data||{enabled:false,immobility_seconds:10,response_seconds:20,transport:'SIMULATED',revision:0};
+  const draft =
+    draftOverride && draftOverride.revision === (profile.data?.revision || 0)
+      ? draftOverride
+      : profile.data || emptyProfile;
+  const policyDraft: EmergencyPolicy =
+    policyOverride && policyOverride.revision === (policy.data?.revision || 0)
+      ? policyOverride
+      : policy.data || {
+          enabled: false,
+          immobility_seconds: 10,
+          response_seconds: 20,
+          transport: "SIMULATED",
+          revision: 0,
+        };
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
     setBusy("profile");

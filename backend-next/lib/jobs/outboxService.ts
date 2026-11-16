@@ -66,8 +66,17 @@ export async function renewJob(id: string, owner: string) {
   );
 }
 export async function retryJob(id: string, owner: string, errorCode: string) {
-  await pool.query(
-    "UPDATE hg_outbox SET status=CASE WHEN attempts>=4 THEN 'FAILED' ELSE 'QUEUED' END,error_code=$3,next_attempt_at=now()+ CASE attempts WHEN 1 THEN interval '1 second' WHEN 2 THEN interval '5 seconds' ELSE interval '15 seconds' END,lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE id=$1 AND lease_owner=$2 AND status='RUNNING'",
-    [id, owner, errorCode],
-  );
+  await withTransaction(async (tx) => {
+    const failed = (
+      await tx.query(
+        "UPDATE hg_outbox SET status=CASE WHEN attempts>=4 THEN 'FAILED' ELSE 'QUEUED' END,error_code=$3,next_attempt_at=now()+ CASE attempts WHEN 1 THEN interval '1 second' WHEN 2 THEN interval '5 seconds' ELSE interval '15 seconds' END,lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE id=$1 AND lease_owner=$2 AND status='RUNNING' RETURNING *",
+        [id, owner, errorCode],
+      )
+    ).rows[0];
+    if (failed?.kind === "PUSH_DELIVERY" && failed.status === "FAILED")
+      await tx.query(
+        "UPDATE hg_notifications SET status=CASE WHEN status='SENDING' THEN 'UNKNOWN' ELSE 'FAILED' END,error_code='JOB_RETRIES_EXHAUSTED' WHERE id::text=$1 AND household_id=$2 AND status IN ('QUEUED','SENDING')",
+        [failed.payload.notification_id, failed.household_id],
+      );
+  });
 }

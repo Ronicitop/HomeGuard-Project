@@ -50,8 +50,13 @@ export function createApi(
       },
       signal: init.signal || AbortSignal.timeout(20000),
     });
-    const payload = await response.json().catch(() => null);
     if (response.status === 401) onExpired();
+    const payload = await response.json().catch((error) => {
+      if (error?.name === "AbortError") throw error;
+      throw new Error(
+        "El servidor devolvió una respuesta no válida. Volvé a intentar.",
+      );
+    });
     if (!response.ok)
       throw new Error(
         payload?.error?.message ||

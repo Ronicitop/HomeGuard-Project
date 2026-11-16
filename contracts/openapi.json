@@ -200,7 +200,25 @@
             "description": "Servicio necesario no disponible"
           }
         },
-        "x-owner": "B"
+        "x-owner": "B",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "installation_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Android: revoca sesión y desactiva esta instalación de forma atómica."
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/dashboard": {

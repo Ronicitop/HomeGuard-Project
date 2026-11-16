@@ -66,6 +66,28 @@ async function event(observability = "VISIBLE") {
 test("lost observations cannot create an emergency incident", async () => {
   expect(await openIncident(await event("LOST"), policy, profile)).toBeNull();
 });
+test("requesting help cannot bypass a disabled global emergency policy", async () => {
+  const incident = await openIncident(await event(), policy, profile);
+  await pool.query(
+    "UPDATE hg_emergency_policies SET enabled=false WHERE household_id=$1",
+    [HOME],
+  );
+  try {
+    await expect(
+      respondIncident(
+        ctx,
+        incident.id,
+        { response: "REQUEST_HELP", expected_revision: 1 },
+        randomUUID(),
+      ),
+    ).rejects.toMatchObject({ code: "POLICY_DISABLED" });
+  } finally {
+    await pool.query(
+      "UPDATE hg_emergency_policies SET enabled=true WHERE household_id=$1",
+      [HOME],
+    );
+  }
+});
 test("disabled current policy overrides a previously enabled snapshot", async () => {
   await pool.query(
     "UPDATE hg_emergency_policies SET enabled=false WHERE household_id=$1",

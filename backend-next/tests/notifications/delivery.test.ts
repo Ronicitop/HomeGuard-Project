@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, test, expect } from "vitest";
 import { randomUUID } from "node:crypto";
-import { pool, resetDatabase, HOME } from "../helpers";
+import { pool, resetDatabase, HOME, OTHER } from "../helpers";
 import {
   registerPushDevice,
   queueNotifications,
@@ -14,6 +14,7 @@ const ctx = {
   session_id: "test",
 };
 const installation = randomUUID();
+
 let event: any;
 beforeAll(async () => {
   await resetDatabase();
@@ -184,4 +185,36 @@ test("disabling notify on the current rule suppresses a previously queued delive
   });
   expect(calls).toBe(0);
   expect(result.status).toBe("SKIPPED");
+});
+
+test("knowing an installation ID cannot revoke another household device with an unrelated token", async () => {
+  await pool.query("INSERT INTO hg_households(id,name) VALUES($1,'Other')", [
+    OTHER,
+  ]);
+  await pool.query(
+    "INSERT INTO hg_memberships(household_id,user_id,role) VALUES($1,1,'ADMINISTRADOR')",
+    [OTHER],
+  );
+  const id = randomUUID();
+  await registerPushDevice(
+    { ...ctx, household_id: OTHER },
+    {
+      installation_id: id,
+      token: "ExponentPushToken[private-other-device]",
+      platform: "android",
+    },
+  );
+  await registerPushDevice(ctx, {
+    installation_id: id,
+    token: "ExponentPushToken[different-device]",
+    platform: "android",
+  });
+  expect(
+    (
+      await pool.query(
+        "SELECT enabled FROM hg_push_devices WHERE household_id=$1 AND installation_id=$2",
+        [OTHER, id],
+      )
+    ).rows[0].enabled,
+  ).toBe(true);
 });

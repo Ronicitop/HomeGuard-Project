@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import pool from "../db";
 import { withTransaction } from "../db/transaction";
 import { type AuthContext, assertPermission } from "../auth/permissions";
@@ -54,10 +54,33 @@ export async function registerPushDevice(
     fail(400, "INVALID_PUSH_TOKEN", "El token del dispositivo no es válido.");
   const encrypted = encryptToken(input.token);
   return withTransaction(async (tx) => {
-    await tx.query(
-      "UPDATE hg_push_devices SET enabled=false WHERE installation_id=$1 AND (user_id<>$2 OR household_id<>$3)",
-      [input.installation_id, ctx.user_id, ctx.household_id],
-    );
+    await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+      `push-installation:${input.installation_id}`,
+    ]);
+    const previous = (
+      await tx.query(
+        "SELECT id,token_encrypted FROM hg_push_devices WHERE installation_id=$1 AND (user_id<>$2 OR household_id<>$3) FOR UPDATE",
+        [input.installation_id, ctx.user_id, ctx.household_id],
+      )
+    ).rows;
+    const incomingHash = createHash("sha256").update(input.token).digest();
+    for (const device of previous) {
+      // An opaque installation ID alone is not authority to revoke another user's device.
+      // Rebinding requires possession of the same private provider token from that installation.
+      let sameToken = false;
+      try {
+        sameToken = timingSafeEqual(
+          createHash("sha256")
+            .update(decryptToken(device.token_encrypted))
+            .digest(),
+          incomingHash,
+        );
+      } catch {}
+      if (sameToken)
+        await tx.query("UPDATE hg_push_devices SET enabled=false WHERE id=$1", [
+          device.id,
+        ]);
+    }
     return (
       await tx.query(
         "INSERT INTO hg_push_devices(id,household_id,user_id,installation_id,token_encrypted,platform) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(household_id,user_id,installation_id) DO UPDATE SET token_encrypted=excluded.token_encrypted,enabled=true,last_seen=now() RETURNING id,installation_id,platform,enabled,last_seen",

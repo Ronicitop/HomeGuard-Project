@@ -6,6 +6,23 @@ import {
   createApi,
   incidentResponse,
 } from "./domain.ts";
+test("an aborted response body cannot become a successful null resource", async () => {
+  const api = createApi(
+    "https://demo.example",
+    "token",
+    () => {},
+    async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new DOMException("Cancelled", "AbortError");
+        },
+      }) as Response,
+  );
+  await assert.rejects(() => api("events"));
+});
+
 test("server setup rejects localhost on a physical phone and invalid URLs", () => {
   assert.throws(() => serverOrigin("file:///private"));
   assert.throws(() => serverOrigin("http://localhost:3000"));

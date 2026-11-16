@@ -29,7 +29,7 @@ export function SettingsPage() {
     useResource<
       Page<{ installation_id: string; enabled: boolean; platform: string }>
     >("/push-devices");
-  const [prefsOverride, setPrefs] = useState<Preferences|null>(null),
+  const [prefsOverride, setPrefs] = useState<Preferences | null>(null),
     [busy, setBusy] = useState(""),
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
@@ -40,7 +40,11 @@ export function SettingsPage() {
     password: "",
     role: "RESIDENTE",
   });
-  const prefs=prefsOverride&&prefsOverride.revision===(preferences.data?.revision||0)?prefsOverride:preferences.data||defaults;
+  const prefs =
+    prefsOverride &&
+    prefsOverride.revision === (preferences.data?.revision || 0)
+      ? prefsOverride
+      : preferences.data || defaults;
   async function savePreferences(e: FormEvent) {
     e.preventDefault();
     setBusy("preferences");
@@ -206,6 +210,32 @@ export function SettingsPage() {
               vincular tu teléfono.
             </p>
           </div>
+          {devices.data?.items
+            .filter((d) => d.enabled)
+            .map((device) => (
+              <div className="service-row" key={device.installation_id}>
+                <span>Android · {device.installation_id.slice(-8)}</span>
+                <button
+                  className="text-button"
+                  disabled={Boolean(busy)}
+                  onClick={() => {
+                    setBusy(device.installation_id);
+                    void api
+                      .delete("/push-devices", {
+                        installation_id: device.installation_id,
+                      })
+                      .then(() => {
+                        setMessage("Dispositivo desvinculado.");
+                        refreshData();
+                      })
+                      .catch((err) => setError(errorMessage(err)))
+                      .finally(() => setBusy(""));
+                  }}
+                >
+                  Desvincular
+                </button>
+              </div>
+            ))}
           <div className="service-row">
             <span>
               <Bell size={17} />

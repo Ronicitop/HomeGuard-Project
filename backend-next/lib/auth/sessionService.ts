@@ -143,11 +143,21 @@ export async function requireSession(request: Request): Promise<AuthContext> {
     session_id: row.session_id,
   };
 }
-export async function revokeSession(ctx: AuthContext): Promise<void> {
-  await pool.query(
-    "UPDATE hg_sessions SET revoked_at=now() WHERE id=$1 AND user_id=$2",
-    [ctx.session_id, ctx.user_id],
-  );
+export async function revokeSession(
+  ctx: AuthContext,
+  installationId?: string,
+): Promise<void> {
+  await withTransaction(async (tx) => {
+    await tx.query(
+      "UPDATE hg_sessions SET revoked_at=now() WHERE id=$1 AND user_id=$2 AND household_id=$3",
+      [ctx.session_id, ctx.user_id, ctx.household_id],
+    );
+    if (installationId)
+      await tx.query(
+        "UPDATE hg_push_devices SET enabled=false WHERE household_id=$1 AND user_id=$2 AND installation_id=$3",
+        [ctx.household_id, ctx.user_id, installationId],
+      );
+  });
 }
 export async function currentUser(ctx: AuthContext) {
   const user = (

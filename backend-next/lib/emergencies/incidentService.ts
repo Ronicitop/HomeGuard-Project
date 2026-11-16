@@ -115,6 +115,24 @@ export async function respondIncident(
     fail(400, "INVALID_RESPONSE", "Respuesta no válida.");
   await withTransaction(async (tx) =>
     idempotent(tx, ctx, `emergency.respond:${id}`, key, body, async () => {
+      if (body.response === "REQUEST_HELP") {
+        await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+          `${ctx.household_id}:emergency-policy`,
+        ]);
+        if (
+          !(
+            await tx.query(
+              "SELECT enabled FROM hg_emergency_policies WHERE household_id=$1",
+              [ctx.household_id],
+            )
+          ).rows[0]?.enabled
+        )
+          fail(
+            409,
+            "POLICY_DISABLED",
+            "El escalamiento está deshabilitado. Un administrador debe revisar la política.",
+          );
+      }
       const row = (
         await tx.query(
           "SELECT * FROM hg_emergency_incidents WHERE id=$1 AND household_id=$2 FOR UPDATE",

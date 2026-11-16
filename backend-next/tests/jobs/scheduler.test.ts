@@ -2,6 +2,7 @@ import { beforeAll, afterAll, test, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { pool, resetDatabase, HOME } from "../helpers";
 import { runJob, recoverExhaustedJobs } from "../../lib/jobs/jobScheduler";
+import { retryJob } from "../../lib/jobs/outboxService";
 import {
   openIncident,
   getIncident,
@@ -90,4 +91,146 @@ test("resident incident detail omits the private address transcript", async () =
   );
   expect(result.profile_snapshot).toBeUndefined();
   expect(result.call.transcript).toBeUndefined();
+});
+test("automatic intrusion commands queued before disarming are cancelled before publication", async () => {
+  const event = randomUUID(),
+    command = randomUUID();
+  await pool.query(
+    "INSERT INTO hg_events(id,household_id,source,category,event_type,severity,summary,occurred_at) VALUES($1,$2,'SIMULATED','SECURITY','IOT_INTRUSION','CRITICAL','Demo',now())",
+    [event, HOME],
+  );
+  await pool.query(
+    "INSERT INTO hg_actuator_commands(id,household_id,legacy_code,requested_state,source,event_id,idempotency_key) VALUES($1::uuid,$2,'ACT_SIRENA_01','ON','AUTO_EVENT',$3,$1::text)",
+    [command, HOME, event],
+  );
+  await pool.query("UPDATE hg_modes SET mode='DISARMED'");
+  let publications = 0;
+  await runJob(
+    {
+      kind: "ACTUATOR",
+      household_id: HOME,
+      event_id: event,
+      payload: { command_id: command },
+    },
+    {
+      requestCommand: async () => {
+        publications++;
+      },
+    } as any,
+  );
+  expect(publications).toBe(0);
+  expect(
+    (
+      await pool.query("SELECT status FROM hg_actuator_commands WHERE id=$1", [
+        command,
+      ])
+    ).rows[0].status,
+  ).toBe("CANCELLED");
+});
+test("exhausting delivery retries also terminates the visible notification", async () => {
+  await pool.query(
+    "INSERT INTO Usuario(id,nombre,apellido,email,password_hash) VALUES(1,'Prueba','Usuario','queue@test.local','unusable')",
+  );
+  await pool.query(
+    "INSERT INTO hg_memberships(household_id,user_id,role) VALUES($1,1,'RESIDENTE')",
+    [HOME],
+  );
+  const n = randomUUID(),
+    j = randomUUID(),
+    e = (await pool.query("SELECT id FROM hg_events LIMIT 1")).rows[0].id;
+  await pool.query(
+    "INSERT INTO hg_notifications(id,household_id,event_id,user_id,installation_id,status) VALUES($1,$2,$3,1,$4,'QUEUED')",
+    [n, HOME, e, randomUUID()],
+  );
+  await pool.query(
+    "INSERT INTO hg_outbox(id,household_id,kind,payload,idempotency_key,status,attempts,lease_owner,lease_until) VALUES($1::uuid,$2,'PUSH_DELIVERY',$3,$1::text,'RUNNING',4,'unit-owner',now()+interval '60 seconds')",
+    [j, HOME, JSON.stringify({ notification_id: n })],
+  );
+  await retryJob(j, "unit-owner", "PROVIDER_RETRY");
+  expect(
+    (await pool.query("SELECT status FROM hg_notifications WHERE id=$1", [n]))
+      .rows[0].status,
+  ).toBe("FAILED");
+});
+test("restart recovery reconciles an exhausted delivery lease without resending an uncertain send", async () => {
+  const n = randomUUID(),
+    e = (await pool.query("SELECT id FROM hg_events LIMIT 1")).rows[0].id;
+  await pool.query(
+    "INSERT INTO hg_notifications(id,household_id,event_id,user_id,installation_id,status) VALUES($1,$2,$3,1,$4,'SENDING')",
+    [n, HOME, e, randomUUID()],
+  );
+  const job = randomUUID();
+  await pool.query(
+    "INSERT INTO hg_outbox(id,household_id,kind,payload,idempotency_key,status,attempts,lease_until) VALUES($1::uuid,$2,'PUSH_DELIVERY',$3,$1::text,'RUNNING',4,now()-interval '1 second')",
+    [job, HOME, JSON.stringify({ notification_id: n })],
+  );
+  await recoverExhaustedJobs();
+  expect(
+    (await pool.query("SELECT status FROM hg_notifications WHERE id=$1", [n]))
+      .rows[0].status,
+  ).toBe("UNKNOWN");
+});
+test("a disabled vision rule cancels its queued automatic actuator command", async () => {
+  const camera = randomUUID(),
+    rule = randomUUID(),
+    version = randomUUID(),
+    event = randomUUID(),
+    command = randomUUID();
+  await pool.query(
+    "CREATE TABLE hg_cameras(id uuid PRIMARY KEY,household_id uuid,enabled boolean,deleted_at timestamptz);CREATE TABLE hg_rules(id uuid PRIMARY KEY,household_id uuid,enabled boolean,active_version_id uuid);CREATE TABLE hg_rule_versions(id uuid PRIMARY KEY,rule_id uuid,household_id uuid,definition jsonb,status text)",
+  );
+  await pool.query("INSERT INTO hg_cameras VALUES($1,$2,true,NULL)", [
+    camera,
+    HOME,
+  ]);
+  await pool.query("INSERT INTO hg_rules VALUES($1,$2,false,$3)", [
+    rule,
+    HOME,
+    version,
+  ]);
+  await pool.query(
+    "INSERT INTO hg_rule_versions VALUES($1,$2,$3,$4,'VALIDATED')",
+    [
+      version,
+      rule,
+      HOME,
+      JSON.stringify({
+        camera_id: camera,
+        actions: { alarm_enabled: true },
+        modes: ["AWAY"],
+        condition: { kind: "ZONE_ENTRY" },
+      }),
+    ],
+  );
+  await pool.query("UPDATE hg_modes SET mode='AWAY'");
+  await pool.query(
+    "INSERT INTO hg_events(id,household_id,camera_id,rule_version_id,source,category,event_type,severity,summary,occurred_at,decisions) VALUES($1,$2,$3,$4,'SIMULATED','SECURITY','ZONE_ENTRY','WARNING','Demo',now(),'{\"alarm_requested\":true}')",
+    [event, HOME, camera, version],
+  );
+  await pool.query(
+    "INSERT INTO hg_actuator_commands(id,household_id,legacy_code,requested_state,source,event_id,idempotency_key) VALUES($1::uuid,$2,'ACT_SIRENA_01','ON','AUTO_EVENT',$3,$1::text)",
+    [command, HOME, event],
+  );
+  let count = 0;
+  await runJob(
+    {
+      kind: "ACTUATOR",
+      household_id: HOME,
+      event_id: event,
+      payload: { command_id: command },
+    },
+    {
+      requestCommand: async () => {
+        count++;
+      },
+    } as any,
+  );
+  expect(count).toBe(0);
+  expect(
+    (
+      await pool.query("SELECT status FROM hg_actuator_commands WHERE id=$1", [
+        command,
+      ])
+    ).rows[0].status,
+  ).toBe("CANCELLED");
 });

@@ -3,6 +3,7 @@ import { pool, resetDatabase, HOME, OTHER } from "../helpers";
 import { hashPassword, verifyPassword } from "../../lib/auth/passwordService";
 import {
   login,
+  createSession,
   requireSession,
   revokeSession,
 } from "../../lib/auth/sessionService";
@@ -30,6 +31,36 @@ beforeAll(async () => {
   ]);
 });
 afterAll(() => pool.end());
+test("mobile logout revokes the session and disables only its own installation atomically", async () => {
+  const { randomUUID } = await import("node:crypto");
+  const installation = randomUUID();
+  const session = await createSession(1, HOME);
+  const ctx = await requireSession(
+    new Request("http://localhost/api/v1/auth/me", {
+      headers: { authorization: `Bearer ${session.token}` },
+    }),
+  );
+  await pool.query(
+    "INSERT INTO hg_push_devices(id,household_id,user_id,installation_id,token_encrypted) VALUES($1,$2,1,$3,'test-unusable')",
+    [randomUUID(), HOME, installation],
+  );
+  await revokeSession(ctx, installation);
+  expect(
+    (
+      await pool.query(
+        "SELECT enabled FROM hg_push_devices WHERE installation_id=$1",
+        [installation],
+      )
+    ).rows[0].enabled,
+  ).toBe(false);
+  expect(
+    (
+      await pool.query("SELECT revoked_at FROM hg_sessions WHERE id=$1", [
+        ctx.session_id,
+      ])
+    ).rows[0].revoked_at,
+  ).not.toBeNull();
+});
 test("password hashing verifies only the correct password without storing plaintext", async () => {
   const hash = await hashPassword("Long-Test-123!");
   expect(hash).not.toContain("Long-Test-123!");
