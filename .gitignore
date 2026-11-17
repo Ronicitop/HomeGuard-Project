@@ -5,3 +5,13 @@ build/
 .env
 .env.local
 *.log
+
+frontend-react/public/models/
+.env.production
+
+.env.lan
+lan/certs/
+
+# Artefactos de compilacion y contexto local
+*.tsbuildinfo
+/CONTEXTO-CONTINUIDAD.md

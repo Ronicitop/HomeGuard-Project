@@ -6,23 +6,29 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "tsc --noEmit",
+    "simulate": "node simulador-sensores.js",
+    "migrate": "tsx scripts/migrate.ts",
+    "worker": "tsx scripts/worker.ts",
+    "predev": "npm run migrate",
+    "stream-worker": "tsx scripts/stream-worker.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "mqtt": "^5.5.0",
-    "next": "^14.2.3",
+    "next": "16.4.6",
     "pg": "^8.11.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tsx": "4.20.6"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "typescript": "^5"
   }
 }

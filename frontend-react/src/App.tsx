@@ -1,3 +1,4 @@
+import Cameras from './Cameras';
 import React, { useState, useEffect } from 'react';
 
 export interface UsuarioSesion {
@@ -10,16 +11,13 @@ export interface UsuarioSesion {
 }
 
 export default function App() {
-  const [usuario, setUsuario] = useState<UsuarioSesion | null>(() => {
-    const sesion = localStorage.getItem('homeguard_user');
-    return sesion ? JSON.parse(sesion) : null;
-  });
-
+  const [usuario, setUsuario] = useState<UsuarioSesion | null>(null);
+  useEffect(()=>{fetch('/api/auth/me').then(r=>r.ok?r.json():null).then(setUsuario);},[]);
   const [vistaAuth, setVistaAuth] = useState<'login' | 'registro'>('login');
-  const [pestana, setPestana] = useState<'dashboard' | 'plano2d' | 'umbrales' | 'usuarios' | 'dispositivos'>('dashboard');
+  const [pestana, setPestana] = useState<'dashboard' | 'plano2d' | 'umbrales' | 'usuarios' | 'dispositivos' | 'cameras'>('dashboard');
 
-  const [loginEmail, setLoginEmail] = useState('admin@homeguard.local');
-  const [loginPassword, setLoginPassword] = useState('admin123');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [errorAuth, setErrorAuth] = useState('');
 
   const [regNombre, setRegNombre] = useState('');
@@ -45,7 +43,8 @@ export default function App() {
 
   useEffect(() => {
     const fetchStatus = () => {
-      fetch('http://localhost:3000/api/status')
+      if(document.hidden || !usuario) return;
+      fetch('/api/status')
         .then(res => res.json())
         .then(data => {
           if (data && !data.error) {
@@ -64,12 +63,12 @@ export default function App() {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 1500);
+    const interval = setInterval(fetchStatus, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [usuario]);
 
   const cargarAdminData = () => {
-    fetch('http://localhost:3000/api/admin/users')
+    fetch('/api/admin/users')
       .then(res => res.json())
       .then(data => {
         if (data.usuarios) setListaUsuarios(data.usuarios);
@@ -77,34 +76,34 @@ export default function App() {
       })
       .catch(err => console.error(err));
 
-    fetch('http://localhost:3000/api/admin/devices')
+    fetch('/api/admin/devices')
       .then(res => res.json())
       .then(data => setListaDispositivos(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
 
-    fetch('http://localhost:3000/api/admin/thresholds')
+    fetch('/api/admin/thresholds')
       .then(res => res.json())
       .then(data => setListaUmbrales(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
   };
 
   useEffect(() => {
-    if (usuario) cargarAdminData();
+    if (usuario?.rol === 'ADMIN') cargarAdminData();
   }, [usuario]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorAuth('');
-    fetch('http://localhost:3000/api/auth/login', {
+    fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: loginEmail, password: loginPassword })
     })
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.usuario) {
-          setUsuario(data.usuario);
-          localStorage.setItem('homeguard_user', JSON.stringify(data.usuario));
+        if (data.success) {
+          fetch('/api/auth/me').then(r=>r.json()).then(setUsuario);
+
         } else {
           setErrorAuth(data.error || 'Credenciales inválidas');
         }
@@ -115,7 +114,7 @@ export default function App() {
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorAuth('');
-    fetch('http://localhost:3000/api/admin/users', {
+    fetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -142,12 +141,12 @@ export default function App() {
 
   const handleLogout = () => {
     setUsuario(null);
-    localStorage.removeItem('homeguard_user');
+    void fetch('/api/auth/logout', {method:'POST'});
   };
 
   const cambiarModo = (nuevoModo: string) => {
     setEstadoSistema((prev: any) => ({ ...prev, modo: nuevoModo }));
-    fetch('http://localhost:3000/api/mode', {
+    fetch('/api/mode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ modo: nuevoModo, usuario_id: usuario?.id || 1 })
@@ -165,7 +164,7 @@ export default function App() {
       actuadores: prev.actuadores.map((a: any) => a.codigo === codigo ? { ...a, estado_actual: nuevoEstado } : a)
     }));
 
-    fetch('http://localhost:3000/api/actuators/command', {
+    fetch('/api/actuators/command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codigo, estado: nuevoEstado, usuario_id: usuario?.id || 1 })
@@ -173,7 +172,7 @@ export default function App() {
   };
 
   const resolverAlerta = (idAlerta?: number) => {
-    fetch('http://localhost:3000/api/alerts/resolve', {
+    fetch('/api/alerts/resolve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id_alerta: idAlerta })
@@ -205,11 +204,11 @@ export default function App() {
   const porcentajeConsumoMensual = Math.min(100, Math.round(((estadoSistema.energia?.energia_kwh || 14.6) / 250) * 100));
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f1f5f9', padding: '1.5rem', fontFamily: 'system-ui, sans-serif', color: '#1e293b' }}>
-      <div style={{ maxWidth: '1050px', margin: '0 auto' }}>
+    <div className="app-shell" style={{ minHeight: '100vh', backgroundColor: '#f1f5f9', padding: '1.5rem', fontFamily: 'system-ui, sans-serif', color: '#1e293b' }}>
+      <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
 
         {!usuario ? (
-          <div style={{ maxWidth: '420px', margin: '4rem auto', background: 'white', padding: '2.5rem', borderRadius: '1rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+          <div className="auth-card" style={{ maxWidth: '420px', margin: '4rem auto', background: 'white', padding: '2.5rem', borderRadius: '1rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
               <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, color: '#0f172a' }}>HomeGuard Security</h1>
               <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Acceso al Sistema y Gestión de Seguridad</p>
@@ -219,7 +218,7 @@ export default function App() {
               <button type="button" onClick={() => setVistaAuth('login')} style={{ flex: 1, border: 'none', padding: '0.5rem', fontWeight: 'bold', borderRadius: '0.35rem', cursor: 'pointer', background: vistaAuth === 'login' ? 'white' : 'transparent', color: vistaAuth === 'login' ? '#0f172a' : '#64748b' }}>
                 Iniciar Sesión
               </button>
-              <button type="button" onClick={() => setVistaAuth('registro')} style={{ flex: 1, border: 'none', padding: '0.5rem', fontWeight: 'bold', borderRadius: '0.35rem', cursor: 'pointer', background: vistaAuth === 'registro' ? 'white' : 'transparent', color: vistaAuth === 'registro' ? '#0f172a' : '#64748b' }}>
+              <button type="button" disabled title="Solicita tu cuenta al administrador" onClick={() => setVistaAuth('login')} style={{ flex: 1, border: 'none', padding: '0.5rem', fontWeight: 'bold', borderRadius: '0.35rem', cursor: 'pointer', background: vistaAuth === 'registro' ? 'white' : 'transparent', color: vistaAuth === 'registro' ? '#0f172a' : '#64748b' }}>
                 Registrarse
               </button>
             </div>
@@ -286,6 +285,7 @@ export default function App() {
 
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
                 <div style={{ display: 'flex', gap: '0.25rem', background: '#f1f5f9', padding: '0.25rem', borderRadius: '0.5rem' }}>
+                  {['ADMIN','RESIDENTE'].includes(usuario.rol) && <button aria-pressed={pestana==='cameras'} onClick={()=>setPestana('cameras')}>Cámaras</button>}
                   <button type="button" onClick={() => setPestana('dashboard')} style={{ border: 'none', padding: '0.4rem 0.75rem', borderRadius: '0.35rem', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', background: pestana === 'dashboard' ? 'white' : 'transparent', color: pestana === 'dashboard' ? '#0f172a' : '#64748b' }}>
                     Monitoreo en Vivo
                   </button>
@@ -309,6 +309,7 @@ export default function App() {
             </div>
 
             {/* ================= DASHBOARD PRINCIPAL (SPRINTS 1 + 2 + 3) ================= */}
+            {pestana === 'cameras' && usuario && <Cameras admin={usuario.rol==='ADMIN'}/>}
             {pestana === 'dashboard' && (
               <>
                 <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
@@ -393,7 +394,7 @@ export default function App() {
                 </div>
 
                 {/* SPRINT 3: MONITOREO ENERGÉTICO (HU11) Y CONTROL DE ACTUADORES (HU13) */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
                   {/* Módulo Energía kWh */}
                   <div style={{ background: 'white', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -503,7 +504,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+                <div className="floor-layout" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
                   {/* SVG Planta Arquitectónica */}
                   <svg viewBox="0 0 600 380" style={{ width: '100%', background: '#f8fafc', border: '2px solid #cbd5e1', borderRadius: '0.75rem' }}>
                     <rect x="20" y="20" width="560" height="340" fill="#ffffff" stroke="#334155" strokeWidth="4" />
@@ -569,7 +570,7 @@ export default function App() {
             {pestana === 'umbrales' && (
               <div style={{ background: 'white', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                 <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem' }}>Parámetros y Umbrales de Seguridad</h2>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '1rem' }}>
+                <div className="table-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '1rem' }}>
                   <thead>
                     <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#64748b' }}>
                       <th style={{ padding: '0.75rem' }}>Variable</th>
@@ -588,7 +589,7 @@ export default function App() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </div>
             )}
 
@@ -596,7 +597,7 @@ export default function App() {
             {pestana === 'usuarios' && (
               <div style={{ background: 'white', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                 <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.2rem' }}>Directorio de Usuarios y Accesos</h2>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <div className="table-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                   <thead>
                     <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0', color: '#64748b' }}>
                       <th style={{ padding: '0.75rem' }}>Nombre</th>
@@ -613,7 +614,7 @@ export default function App() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </div>
             )}
 

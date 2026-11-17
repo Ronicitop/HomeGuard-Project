@@ -39,7 +39,8 @@ export async function ejecutarComandoActuador(codigo: string, nuevoEstado: 'ON' 
       [nuevoEstado, usuarioId, codigo]
     );
 
-    if (res.rows.length > 0 && client && client.connected) {
+    if (res.rows.length > 0) {
+      if (!client) iniciarServicioMQTT(false);
       const act = res.rows[0];
       const payload = JSON.stringify({
         device_id: act.device_id,
@@ -178,17 +179,20 @@ async function evaluarMotorReglas(sensor: string, estado: string | null, valor: 
   }
 }
 
-export function iniciarServicioMQTT() {
+export function iniciarServicioMQTT(consume = true) {
   if (client) return;
 
-  const BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://broker.emqx.io:1883';
+  const BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://mqtt:1883';
   client = mqtt.connect(BROKER_URL, {
     clientId: `homeguard-worker-${Math.random().toString(16).slice(2, 8)}`,
     clean: true,
+    username: process.env.MQTT_USER,
+    password: process.env.MQTT_PASSWORD,
   });
 
   client.on('connect', () => {
     console.log('[MQTT Worker] Conectado al broker:', BROKER_URL);
+    if (!consume) return;
     client?.subscribe(['homeguard/+/telemetry', 'homeguard/+/energy', 'homeguard/sensores/#'], (err) => {
       if (err) console.error('[MQTT Worker] Error al suscribirse:', err);
       else console.log('[MQTT Worker] Suscrito a telemetría y canal energético (Sprint 3).');
@@ -249,3 +253,4 @@ export function iniciarServicioMQTT() {
 
   client.on('error', (err) => console.error('[MQTT Worker Error]:', err));
 }
+export async function detenerServicioMQTT(){if(client){await client.endAsync();client=null;}}

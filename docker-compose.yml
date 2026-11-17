@@ -1,0 +1,110 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: homeguard_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      POSTGRES_DB: ${DB_NAME:-homeguard_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-homeguard_db}"]
+      interval: 4s
+      timeout: 5s
+      retries: 5
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: homeguard_mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  backend:
+    build:
+      context: ./backend-next
+      dockerfile: Dockerfile
+    container_name: homeguard_backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-homeguard_db}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-mqtt://mqtt:1883}
+      API_PROXY_TARGET: http://backend:3000
+      INFERENCE_URL: http://inference:8090
+      INFERENCE_SECRET: ${INFERENCE_SECRET:?Set INFERENCE_SECRET}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:5173}
+      NODE_ENV: development
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    volumes:
+      - ./backend-next:/app
+      - /app/node_modules
+      - /app/.next
+
+  frontend:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+    container_name: homeguard_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      API_PROXY_TARGET: http://backend:3000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend-react:/app
+      - /app/node_modules
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.15.4
+    restart: unless-stopped
+    ports: ['8189:8189/udp']
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${LAN_IP:-127.0.0.1}
+    volumes: ['./mediamtx/mediamtx.yml:/mediamtx.yml:ro']
+    depends_on: [backend]
+  stream-worker:
+    build: ./backend-next
+    command: [npm, run, stream-worker]
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-homeguard_db}
+    depends_on: [backend]
+  inference:
+    build: ./inference
+    restart: unless-stopped
+    init: true
+    mem_limit: 1800m
+    cpus: 2.0
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-homeguard_db}
+      INFERENCE_SECRET: ${INFERENCE_SECRET:?Set INFERENCE_SECRET}
+    depends_on: [backend, mediamtx]
+
+volumes:
+  postgres_data:
+    driver: local

@@ -1,8 +1,9 @@
+import {hashPassword} from '../../../../lib/auth';
+import { currentUser } from '../../../../lib/auth';
 import { NextResponse } from 'next/server';
 import { query } from '../../../../lib/db';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
@@ -12,6 +13,9 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
+    const session = await currentUser();
+    if (!session) return NextResponse.json({error:'Sesión requerida'},{status:401});
+    if (!session.permisos.includes('GESTION_USUARIOS')) return NextResponse.json({error:'Acceso denegado'},{status:403});
   try {
     const resUsers = await query(`
       SELECT u.id, u.nombre, u.apellido, u.email, u.telefono, u.activo, u.creado_en, r.nombre AS rol
@@ -30,10 +34,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+    const session = await currentUser();
+    if (!session) return NextResponse.json({error:'Sesión requerida'},{status:401});
+    if (!session.permisos.includes('GESTION_USUARIOS')) return NextResponse.json({error:'Acceso denegado'},{status:403});
   try {
     const { nombre, apellido, email, password, telefono, rol_id } = await req.json();
 
-    if (!nombre || !apellido || !email || !password || !rol_id) {
+    if (typeof nombre !== 'string' || typeof apellido !== 'string' || typeof email !== 'string' || typeof password !== 'string' || password.length < 8 || password.length > 256 || !rol_id) {
       return NextResponse.json({ error: 'Todos los campos obligatorios deben completarse' }, { status: 400, headers: corsHeaders });
     }
 
@@ -41,7 +48,7 @@ export async function POST(req: Request) {
       `INSERT INTO Usuario (nombre, apellido, email, password_hash, telefono, activo)
        VALUES ($1, $2, $3, $4, $5, TRUE)
        RETURNING id, nombre, apellido, email`,
-      [nombre, apellido, email, password, telefono ? parseInt(telefono, 10) : null]
+      [nombre, apellido, email, hashPassword(password), telefono ? parseInt(telefono, 10) : null]
     );
 
     const nuevoId = resUser.rows[0].id;

@@ -1,0 +1,65 @@
+services:
+  backend:
+    container_name: homeguard_lan_backend
+    build:
+      context: ./backend-next
+      dockerfile: Dockerfile.prod
+      target: runtime
+    command: [node, server.js]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes: !reset []
+    environment:
+      NODE_ENV: production
+      INFERENCE_SECRET: ${INFERENCE_SECRET:?Set INFERENCE_SECRET}
+      PUBLIC_ORIGIN: https://${LAN_IP:?Set LAN_IP}:8443
+  migrate:
+    build:
+      context: ./backend-next
+      dockerfile: Dockerfile.prod
+      target: worker
+    command: [npm, run, migrate]
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-homeguard_db}
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile.lan
+    volumes: !reset []
+  mediamtx:
+    image: bluenviron/mediamtx:1.15.4
+    restart: unless-stopped
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${LAN_IP:?Set LAN_IP}
+    ports: ['8189:8189/udp']
+    volumes: ['./mediamtx/mediamtx.yml:/mediamtx.yml:ro']
+    depends_on: [backend]
+  stream-worker:
+    build: ./backend-next
+    command: [npm, run, stream-worker]
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-homeguard_db}
+    volumes: !reset []
+    depends_on: [backend, mediamtx]
+  lan:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      LAN_IP: ${LAN_IP:?Set LAN_IP}
+    ports: ['8443:8443']
+    volumes: ['./lan/Caddyfile:/etc/caddy/Caddyfile:ro', 'lan_caddy:/data', 'lan_config:/config']
+    depends_on: [frontend, mediamtx]
+volumes:
+  lan_caddy:
+  lan_config:

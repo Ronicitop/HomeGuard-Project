@@ -1,0 +1,108 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:?Set DB_PASS}
+      POSTGRES_DB: ${DB_NAME:-homeguard_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-homeguard_db}']
+      interval: 5s
+      retries: 20
+  mqtt:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    environment:
+      MQTT_USER: ${MQTT_USER:?Set MQTT_USER}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?Set MQTT_PASSWORD}
+    entrypoint: [/bin/sh, -ec]
+    command: ['mosquitto_passwd -b -c /mosquitto/config/passwords "$$MQTT_USER" "$$MQTT_PASSWORD"; chown mosquitto:mosquitto /mosquitto/config/passwords; exec mosquitto -c /mosquitto/config/production.conf']
+    volumes:
+      - ./mosquitto/config/production.conf:/mosquitto/config/production.conf:ro
+  migrate:
+    build:
+      context: ./backend-next
+      dockerfile: Dockerfile.prod
+      target: worker
+    command: [npm, run, migrate]
+    environment: &backend_env
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:?Set DB_PASS}
+      DB_NAME: ${DB_NAME:-homeguard_db}
+      MQTT_BROKER_URL: mqtt://mqtt:1883
+      MQTT_USER: ${MQTT_USER}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      INFERENCE_URL: http://inference:8090
+      INFERENCE_SECRET: ${INFERENCE_SECRET:?Set INFERENCE_SECRET}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+  backend:
+    build:
+      context: ./backend-next
+      dockerfile: Dockerfile.prod
+      target: runtime
+    restart: unless-stopped
+    environment: *backend_env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://localhost:3000/api/health").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 30s
+  worker:
+    build:
+      context: ./backend-next
+      dockerfile: Dockerfile.prod
+      target: worker
+    restart: unless-stopped
+    environment: *backend_env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mqtt:
+        condition: service_started
+  mediamtx:
+    image: bluenviron/mediamtx:1.15.4
+    restart: unless-stopped
+    environment:
+      MTX_WEBRTCADDITIONALHOSTS: ${LAN_IP:?Set LAN_IP}
+    ports: ['8189:8189/udp']
+    volumes: ['./mediamtx/mediamtx.yml:/mediamtx.yml:ro']
+    depends_on: [backend]
+  frontend:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS}
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes: [caddy_data:/data, caddy_config:/config]
+    depends_on: [backend]
+  inference:
+    build: ./inference
+    restart: unless-stopped
+    init: true
+    mem_limit: 1800m
+    cpus: 2.0
+    environment:
+      DB_HOST: db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      DB_NAME: ${DB_NAME:-homeguard_db}
+      INFERENCE_SECRET: ${INFERENCE_SECRET:?Set INFERENCE_SECRET}
+    depends_on: [backend, mediamtx]
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

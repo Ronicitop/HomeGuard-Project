@@ -1,0 +1,2 @@
+import {query} from './db';
+export async function expireStreams(){const rows=await query('SELECT id,media_id,tipo FROM SesionCamara WHERE expira_en<=NOW()');for(const row of rows.rows){if(row.media_id){try{const r=await fetch((process.env.MEDIA_API||'http://mediamtx:9997')+(row.tipo==='process'?'/v3/rtspconns/kick/':'/v3/webrtcsessions/kick/')+encodeURIComponent(row.media_id),{method:'POST',signal:AbortSignal.timeout(2000)});if(!r.ok&&r.status!==404)continue;}catch{continue;}}await query('DELETE FROM SesionCamara WHERE id=$1 AND expira_en<=NOW()',[row.id]);}}
