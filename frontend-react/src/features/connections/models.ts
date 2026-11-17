@@ -113,3 +113,45 @@ export function definitionOf(c: Definition): Definition {
     })),
   };
 }
+// This private export is produced only from the one-time provisioning response.
+// It is downloaded explicitly by the user and never persisted in browser storage.
+export function installerConfiguration(provision: Provision, host: string) {
+  const c = provision.connection,
+    credential = provision.credentials!;
+  return {
+    format: "homeguard.connection.v1",
+    connection_id: c.id,
+    name: c.name,
+    transport: c.transport,
+    credential_generation: credential.generation,
+    heartbeat_seconds: c.heartbeat_seconds,
+    channels: c.channels.map(({ key, name, kind, type, unit }) => ({
+      key,
+      name,
+      kind,
+      type,
+      unit,
+    })),
+    http:
+      c.transport === "HTTP"
+        ? {
+            base_url: `http://${host}:3000${credential.http_path}`,
+            bearer_token: credential.token,
+          }
+        : undefined,
+    mqtt:
+      c.transport === "MQTT"
+        ? {
+            host,
+            port: 1883,
+            username: credential.username,
+            client_id: credential.username,
+            password: credential.token,
+            clean: true,
+            retain: false,
+            topics: credential.topics,
+          }
+        : undefined,
+    note: "La dirección debe ser accesible desde el dispositivo. localhost apunta al propio equipo; reemplazarlo por la IP privada de la PC para otros equipos. Usar solo en la red privada de pruebas; el acceso remoto requiere TLS.",
+  };
+}

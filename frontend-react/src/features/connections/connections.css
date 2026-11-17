@@ -203,12 +203,217 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.connection-steps {
+  display: flex;
+  gap: 24px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 26px;
+  color: var(--muted);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.connection-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.connection-steps li > span {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-subtle);
+}
+.connection-steps li[aria-current="step"] {
+  color: var(--accent-dark);
+  font-weight: 650;
+}
+.connection-steps li[aria-current="step"] > span {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.connection-step-title {
+  margin: 0 !important;
+  font-size: 20px;
+}
+.connection-type-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 22px 0;
+}
+.connection-type-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 22px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  color: var(--text);
+  min-height: 165px;
+  cursor: pointer;
+}
+.connection-type-choice:hover {
+  border-color: var(--accent);
+  background: var(--surface-subtle);
+}
+.connection-type-choice > strong {
+  font-size: 16px;
+}
+.connection-type-choice > span:last-child {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 400;
+}
+.connection-choice-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+.connection-chosen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 22px;
+  background: var(--surface-subtle);
+}
+.connection-chosen small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+  font-size: 12px;
+}
+.connection-chosen .text-button {
+  margin-left: auto;
+  min-height: 44px;
+}
+.connection-functions {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+.connection-install-note {
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+.connection-function-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+.connection-advanced {
+  margin: 22px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0 16px;
+}
+.connection-advanced summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 52px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  list-style: none;
+}
+.connection-advanced summary::-webkit-details-marker {
+  display: none;
+}
+.connection-advanced summary::after {
+  content: "+";
+  margin-left: auto;
+  font-size: 20px;
+  color: var(--accent);
+}
+.connection-advanced[open] > summary::after {
+  content: "−";
+}
+.connection-advanced[open] {
+  padding-bottom: 16px;
+}
+.connection-advanced summary > span {
+  font-weight: 400;
+  color: var(--muted);
+}
+.connection-advanced small {
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.connection-provision-result {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  color: var(--accent-dark);
+}
+.connection-provision-result h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.connection-provision-result p {
+  margin: 6px 0 0;
+}
+.connection-download-success {
+  font-size: 13px;
+  color: var(--accent-dark);
+}
+.connection-installer-details {
+  margin-top: 24px;
+}
+.connection-installer-details label {
+  margin-bottom: 12px;
+}
 @media (max-width: 1000px) {
   .connections-grid {
     grid-template-columns: 1fr;
   }
 }
 @media (max-width: 560px) {
+  .connection-type-choices {
+    grid-template-columns: 1fr;
+  }
+  .connection-type-choice {
+    min-height: 0;
+    padding: 16px;
+    gap: 7px;
+  }
+  .connection-chosen {
+    flex-wrap: wrap;
+  }
+  .connection-chosen .text-button {
+    margin-left: 56px;
+  }
+  .connection-steps {
+    gap: 14px;
+    font-size: 12px;
+  }
+  .connection-advanced summary {
+    flex-wrap: wrap;
+  }
   .connection-dialog {
     padding: 18px;
   }

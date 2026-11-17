@@ -15,8 +15,11 @@ test("camera branch uses the existing login and can register and remove a webcam
   const name = `Webcam integración ${Date.now()}`;
   await page.getByRole("button", { name: "Agregar equipo" }).click();
   const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Cámara", exact: true }).click();
   await dialog.getByLabel("Nombre", { exact: true }).fill(name);
-  await dialog.getByLabel("Tipo de equipo").selectOption("CAMERA");
+  await expect(
+    dialog.getByRole("button", { name: "Buscar cámaras" }),
+  ).toBeVisible();
   await dialog.getByRole("button", { name: "Registrar equipo" }).click();
   const card = page
     .locator(".panel")

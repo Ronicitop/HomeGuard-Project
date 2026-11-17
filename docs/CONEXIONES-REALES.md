@@ -49,11 +49,14 @@ Sus estados aparecen únicamente en la sección desplegable de demostración de 
 
 ## Registro y credenciales
 
-1. Entrar como administrador → Conexiones → Agregar equipo.
-2. Definir nombre, ubicación, modelo, tipo, transporte y canales. Las claves deben empezar con letra minúscula y usar solo letras minúsculas, números, `_` o `-`; máximo 32 caracteres.
-3. Guardar el token mostrado **una sola vez**. No se guarda en localStorage ni en las listas del API; en la base se conserva un hash SHA-256 de un token aleatorio de 256 bits.
-4. Configurar el firmware. No compartir credenciales de usuarios humanos o del procesador con dispositivos.
-5. Si se pierde o expone un token, pulsar Renovar token y actualizar el firmware. Se revocan la generación anterior, los comandos pendientes y las sesiones MQTT anteriores. El equipo vuelve a “Esperando datos”.
+1. Entrar como administrador → Conexiones → Agregar equipo. Elegir una tarjeta: Cámara, Sensor, Luz/alarma u otra salida, o Equipo con varios sensores.
+2. Completar nombre, ubicación opcional y qué mide o controla. En cámaras, Buscar cámaras solicita permiso, permite elegir una webcam y libera la captura al terminar. Los controladores permiten agregar cada medición o salida.
+3. **Opciones avanzadas** queda cerrada por defecto. Ahí el instalador puede definir modelo, HTTP/MQTT, frecuencia de contacto, claves de canales y habilitación. HTTP y 15 segundos son valores iniciales, no una detección automática del hardware. Editar solo el nombre conserva la configuración técnica existente.
+4. Para sensores/actuadores, descargar el archivo privado desde **Preparar conexión → Descargar configuración**. Incluye la dirección del servidor, protocolo, claves de canales y credencial del equipo. La clave se entrega **una sola vez**; también puede verse/copiarse al desplegar los detalles técnicos. El archivo contiene un secreto: conservarlo y compartirlo solo con quien instala el equipo. No se guarda en localStorage ni en las listas del API; en la base se conserva un hash SHA-256 de un token aleatorio de 256 bits.
+5. El instalador debe configurar el firmware y sustituir localhost por la IP privada de la PC si el dispositivo está en otro equipo. El archivo no instala firmware automáticamente ni garantiza compatibilidad universal. No compartir credenciales de usuarios humanos o del procesador con dispositivos.
+6. Si se pierde o expone una clave, pulsar **Renovar clave** y actualizar el firmware. Se revocan la generación anterior, los comandos pendientes y las sesiones MQTT anteriores. El equipo vuelve a “Esperando datos”.
+
+Las claves técnicas deben empezar con letra minúscula y usar solo letras minúsculas, números, `_` o `-`; máximo 32 caracteres. El asistente genera `main` para un equipo simple y claves distintas para las mediciones adicionales. Las preguntas normales no exigen conocer qué es un canal o un heartbeat.
 
 La revisión de configuración evita sobrescribir cambios de otro administrador. Tipo y transporte son inmutables: registrar un equipo nuevo para cambiarlos. Deshabilitar o eliminar revoca el acceso y cancela comandos; eliminar conserva historial. Habilitar nuevamente exige una comunicación nueva para mostrar En línea.
 

@@ -1,5 +1,6 @@
+import { ConnectionForm } from "./ConnectionForm";
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode, FormEvent } from "react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   Camera,
@@ -10,6 +11,8 @@ import {
   Trash2,
   KeyRound,
   RefreshCw,
+  Download,
+  CheckCircle2,
 } from "lucide-react";
 import { useSession } from "../../app/SessionProvider";
 import { useResource } from "../../shared/useResource";
@@ -29,42 +32,20 @@ import {
   commandText,
   readingText,
   definitionOf,
+  installerConfiguration,
 } from "./models";
-import type {
-  Connection,
-  Channel,
-  Definition,
-  Catalog,
-  Provision,
-} from "./models";
+import type { Connection, Channel, Catalog, Provision } from "./models";
 import "./connections.css";
-const initial: Definition = {
-  name: "",
-  kind: "SENSOR",
-  transport: "HTTP",
-  location: "",
-  model: "",
-  enabled: true,
-  heartbeat_seconds: 15,
-  webcam_device_id: null,
-  channels: [
-    {
-      key: "main",
-      name: "Temperatura",
-      kind: "SENSOR",
-      type: "TEMPERATURE",
-      unit: "°C",
-    },
-  ],
-};
 function Dialog({
   title,
   children,
   close,
+  busy = false,
 }: {
   title: string;
   children: ReactNode;
   close: () => void;
+  busy?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -76,7 +57,7 @@ function Dialog({
       ref={ref}
       onCancel={(e) => {
         e.preventDefault();
-        close();
+        if (!busy) close();
       }}
       aria-label={title}
     >
@@ -86,6 +67,7 @@ function Dialog({
           className="button secondary"
           onClick={close}
           aria-label="Cerrar diálogo"
+          disabled={busy}
         >
           Cerrar
         </button>
@@ -126,9 +108,6 @@ export function ChannelReadings({
           <div className="connection-channel" key={c.key}>
             <div>
               <strong>{c.name}</strong>
-              <small>
-                {c.key} · {c.type}
-              </small>
             </div>
             <div>
               <strong>{readingText(c)}</strong>
@@ -188,6 +167,7 @@ export function ConnectionsPage() {
   const [editing, setEditing] = useState<Connection | null | undefined>(
       undefined,
     ),
+    [editorSaving, setEditorSaving] = useState(false),
     [provision, setProvision] = useState<Provision | null>(null),
     [remove, setRemove] = useState<Connection | null>(null),
     [rotate, setRotate] = useState<Connection | null>(null),
@@ -243,9 +223,9 @@ export function ConnectionsPage() {
         }
       />
       <Notice>
-        Webcams del navegador y equipos compatibles con MQTT o HTTP. Registrar
-        un equipo no genera lecturas. Para usar un sensor comercial, su firmware
-        o una pasarela debe implementar el protocolo HomeGuard.
+        Agregá tus cámaras y dispositivos en pocos pasos. Sus lecturas
+        aparecerán cuando estén conectados; registrar un equipo no genera datos
+        de ejemplo.
       </Notice>
       {message && <Notice tone="error">{message}</Notice>}
       <div className="connection-summary">
@@ -287,7 +267,7 @@ export function ConnectionsPage() {
           <Empty
             icon={<Plug size={30} />}
             title="Sin equipos registrados"
-            description="Agregá una webcam o prepará un equipo MQTT/HTTP. Las lecturas aparecerán cuando se comunique."
+            description="Empezá por agregar una cámara, un sensor o un equipo que quieras controlar. Te guiaremos paso a paso."
           />
         </Panel>
       ) : (
@@ -296,7 +276,7 @@ export function ConnectionsPage() {
             <Panel
               key={c.id}
               title={c.name}
-              description={`${kindText[c.kind]} · ${c.transport} · ${c.location || "Sin ubicación"}`}
+              description={`${kindText[c.kind]} · ${c.location || "Sin ubicación"}`}
               action={
                 <span
                   className={`connection-status status-${c.status.toLowerCase()}`}
@@ -360,7 +340,7 @@ export function ConnectionsPage() {
                       onClick={() => setRotate(c)}
                     >
                       <KeyRound size={15} />
-                      Renovar token
+                      Renovar clave
                     </button>
                   )}
                   <button
@@ -378,36 +358,43 @@ export function ConnectionsPage() {
       )}
       <Panel
         title="Cómo se conectan"
-        description="Cada equipo tiene una configuración y credencial propias."
+        description="Unos pocos pasos para empezar."
       >
         <ol className="connection-guide">
+          <li>Pulsá Agregar equipo y elegí lo que querés conectar.</li>
+          <li>Dale un nombre y una ubicación para reconocerlo fácilmente.</li>
           <li>
-            Registrá el equipo y definí sus canales; un controlador puede tener
-            hasta 16.
+            Si es una cámara, abrila desde Cámaras. Si es un sensor u otro
+            dispositivo, descargá la configuración para quien lo instala.
           </li>
           <li>
-            Guardá el token que se muestra una sola vez y configurá el firmware
-            con las instrucciones del diálogo.
-          </li>
-          <li>
-            El equipo envía su primera medición o un heartbeat. Solo entonces
-            cambia su estado de comunicación.
-          </li>
-          <li>
-            Los actuadores deben responder con un ACK del comando; enviar la
-            solicitud no prueba que una salida física haya cambiado.
+            Esperá a que el equipo se conecte. Podrás ver sus datos y la fecha
+            de la última comunicación.
           </li>
         </ol>
         <p className="muted text-small">
-          Sin hardware conectado, los equipos quedan esperando datos. El sistema
-          no descubre sensores USB, Zigbee, Bluetooth o de marcas privadas de
-          forma automática.
+          Si todavía no tenés el equipo, podés dejarlo registrado. Aparecerá
+          esperando datos hasta que completes la conexión.
         </p>
+        <details className="connection-advanced">
+          <summary>Compatibilidad y ayuda para el instalador</summary>
+          <p className="muted text-small">
+            Se admiten webcams del navegador y equipos que implementen el
+            protocolo HTTP o MQTT de HomeGuard. Los sensores necesitan firmware
+            o una pasarela compatible; no se descubren automáticamente
+            dispositivos USB, Zigbee, Bluetooth o de marcas privadas. Una orden
+            de encendido necesita confirmación del dispositivo para mostrarse
+            como atendida.
+          </p>
+        </details>
       </Panel>
       {editing !== undefined && (
         <Dialog
           title={editing ? "Configurar equipo" : "Agregar equipo"}
-          close={() => setEditing(undefined)}
+          close={() => {
+            if (!editorSaving) setEditing(undefined);
+          }}
+          busy={editorSaving}
         >
           {catalog.error ? (
             <ResourceError message={catalog.error} retry={catalog.reload} />
@@ -416,6 +403,7 @@ export function ConnectionsPage() {
               existing={editing}
               catalog={catalog.data}
               cancel={() => setEditing(undefined)}
+              onSavingChange={setEditorSaving}
               saved={(result) => {
                 setEditing(undefined);
                 if (result.credentials) setProvision(result);
@@ -468,413 +456,6 @@ export function ConnectionsPage() {
     </>
   );
 }
-function ConnectionForm({
-  existing,
-  catalog,
-  saved,
-  cancel,
-}: {
-  existing: Connection | null;
-  catalog: Catalog;
-  saved: (r: Provision) => void;
-  cancel: () => void;
-}) {
-  const [draft, setDraft] = useState<Definition>(() =>
-      existing ? definitionOf(existing) : structuredClone(initial),
-    ),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  function kind(value: Definition["kind"]) {
-    setDraft((d) => ({
-      ...d,
-      kind: value,
-      transport:
-        value === "CAMERA"
-          ? "WEBCAM"
-          : d.transport === "WEBCAM"
-            ? "HTTP"
-            : d.transport,
-      webcam_device_id: null,
-      channels:
-        value === "CAMERA"
-          ? []
-          : [
-              {
-                key: "main",
-                name: value === "ACTUATOR" ? "Salida" : "Temperatura",
-                kind: value === "ACTUATOR" ? "ACTUATOR" : "SENSOR",
-                type: value === "ACTUATOR" ? "RELAY" : "TEMPERATURE",
-                unit: value === "ACTUATOR" ? "" : "°C",
-              },
-            ],
-    }));
-  }
-  async function detect() {
-    setBusy(true);
-    setError("");
-    let stream: MediaStream | undefined;
-    try {
-      if (!navigator.mediaDevices?.getUserMedia)
-        throw new Error(
-          "La webcam requiere localhost o HTTPS y permiso del navegador.",
-        );
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false,
-      });
-      const found = (await navigator.mediaDevices.enumerateDevices()).filter(
-        (d) => d.kind === "videoinput",
-      );
-      if (mounted.current) setDevices(found);
-    } catch (e) {
-      if (mounted.current) setError(errorMessage(e));
-    } finally {
-      stream?.getTracks().forEach((t) => t.stop());
-      if (mounted.current) setBusy(false);
-    }
-  }
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const result = existing
-        ? {
-            connection: await api.patch<Connection>(
-              `/connections/${existing.id}`,
-              { ...draft, expected_revision: existing.revision },
-            ),
-            credentials: null,
-          }
-        : await api.post<Provision>("/connections", draft);
-      saved(result);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <form className="connection-form" onSubmit={(e) => void submit(e)}>
-      {error && <Notice tone="error">{error}</Notice>}
-      <div className="connection-form-grid">
-        <label>
-          Nombre
-          <input
-            required
-            minLength={2}
-            maxLength={100}
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            placeholder="Temperatura cocina"
-          />
-        </label>
-        <label>
-          Tipo de equipo
-          <select
-            disabled={!!existing}
-            value={draft.kind}
-            onChange={(e) => kind(e.target.value as Definition["kind"])}
-          >
-            {Object.entries(kindText).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Conexión
-          <select
-            disabled={!!existing || draft.kind === "CAMERA"}
-            value={draft.transport}
-            onChange={(e) =>
-              setDraft({
-                ...draft,
-                transport: e.target.value as Definition["transport"],
-              })
-            }
-          >
-            {draft.kind === "CAMERA" ? (
-              <option value="WEBCAM">Webcam / navegador</option>
-            ) : (
-              <>
-                <option value="HTTP">
-                  HTTP · envío de datos y consulta de comandos
-                </option>
-                <option value="MQTT">MQTT · broker local autenticado</option>
-              </>
-            )}
-          </select>
-        </label>
-        <label>
-          Ubicación
-          <input
-            maxLength={100}
-            value={draft.location}
-            onChange={(e) => setDraft({ ...draft, location: e.target.value })}
-            placeholder="Cocina"
-          />
-        </label>
-        <label>
-          Modelo / descripción
-          <input
-            maxLength={100}
-            value={draft.model}
-            onChange={(e) => setDraft({ ...draft, model: e.target.value })}
-            placeholder="ESP32 con sensor de temperatura"
-          />
-        </label>
-        {draft.kind !== "CAMERA" && (
-          <label>
-            Heartbeat esperado (segundos)
-            <input
-              required
-              type="number"
-              min={5}
-              max={3600}
-              value={draft.heartbeat_seconds}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  heartbeat_seconds: Number(e.target.value),
-                })
-              }
-            />
-          </label>
-        )}
-      </div>
-      {draft.kind === "CAMERA" ? (
-        <div className="webcam-config">
-          <p>
-            El permiso se solicita al pulsar el botón. La detección libera la
-            webcam al terminar.
-          </p>
-          <button
-            type="button"
-            className="button secondary"
-            disabled={busy}
-            onClick={() => void detect()}
-          >
-            Detectar webcams
-          </button>
-          <label>
-            Webcam de este navegador
-            <select
-              value={draft.webcam_device_id || ""}
-              onChange={(e) =>
-                setDraft({ ...draft, webcam_device_id: e.target.value || null })
-              }
-            >
-              <option value="">
-                Cámara predeterminada / elegir al transmitir
-              </option>
-              {draft.webcam_device_id &&
-                !devices.some((d) => d.deviceId === draft.webcam_device_id) && (
-                  <option value={draft.webcam_device_id}>
-                    Webcam guardada en otro navegador
-                  </option>
-                )}
-              {devices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || "Webcam"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <small>
-            Los identificadores dependen del navegador. Registrarla no inicia la
-            grabación.
-          </small>
-        </div>
-      ) : (
-        <fieldset>
-          <legend>Canales del equipo</legend>
-          <p className="muted text-small">
-            La clave debe coincidir con el firmware. Booleanos: true = detección
-            / puerta abierta; false = sin detección / cerrada.
-          </p>
-          {draft.channels.map((c, i) => (
-            <div className="channel-editor" key={i}>
-              <label>
-                Clave
-                <input
-                  required
-                  pattern="[a-z][a-z0-9_-]{0,31}"
-                  value={c.key}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      channels: draft.channels.map((x, n) =>
-                        n === i ? { ...x, key: e.target.value } : x,
-                      ),
-                    })
-                  }
-                />
-              </label>
-              <label>
-                Nombre del canal
-                <input
-                  required
-                  maxLength={80}
-                  value={c.name}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      channels: draft.channels.map((x, n) =>
-                        n === i ? { ...x, name: e.target.value } : x,
-                      ),
-                    })
-                  }
-                />
-              </label>
-              {draft.kind === "GATEWAY" && (
-                <label>
-                  Entrada / salida
-                  <select
-                    value={c.kind}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        channels: draft.channels.map((x, n) =>
-                          n === i
-                            ? {
-                                ...x,
-                                kind: e.target.value as "SENSOR" | "ACTUATOR",
-                                type:
-                                  e.target.value === "SENSOR"
-                                    ? "TEMPERATURE"
-                                    : "RELAY",
-                                unit: e.target.value === "SENSOR" ? "°C" : "",
-                              }
-                            : x,
-                        ),
-                      })
-                    }
-                  >
-                    <option value="SENSOR">Sensor</option>
-                    <option value="ACTUATOR">Actuador</option>
-                  </select>
-                </label>
-              )}
-              <label>
-                Tipo de canal
-                <select
-                  value={c.type}
-                  onChange={(e) => {
-                    const type = (
-                      c.kind === "SENSOR"
-                        ? catalog.sensor_types
-                        : catalog.actuator_types
-                    ).find((t) => t.id === e.target.value)!;
-                    setDraft({
-                      ...draft,
-                      channels: draft.channels.map((x, n) =>
-                        n === i ? { ...x, type: type.id, unit: type.unit } : x,
-                      ),
-                    });
-                  }}
-                >
-                  {(c.kind === "SENSOR"
-                    ? catalog.sensor_types
-                    : catalog.actuator_types
-                  ).map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {c.type === "NUMBER" && (
-                <label>
-                  Unidad
-                  <input
-                    maxLength={16}
-                    value={c.unit}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        channels: draft.channels.map((x, n) =>
-                          n === i ? { ...x, unit: e.target.value } : x,
-                        ),
-                      })
-                    }
-                  />
-                </label>
-              )}
-              {draft.kind === "GATEWAY" && draft.channels.length > 1 && (
-                <button
-                  type="button"
-                  className="text-button danger-text"
-                  onClick={() =>
-                    setDraft({
-                      ...draft,
-                      channels: draft.channels.filter((_, n) => n !== i),
-                    })
-                  }
-                >
-                  Quitar canal
-                </button>
-              )}
-            </div>
-          ))}
-          {draft.kind === "GATEWAY" && (
-            <button
-              type="button"
-              className="button secondary"
-              disabled={draft.channels.length >= 16}
-              onClick={() =>
-                setDraft({
-                  ...draft,
-                  channels: [
-                    ...draft.channels,
-                    {
-                      key: `ch${Date.now().toString(36)}`,
-                      name: "Nuevo canal",
-                      kind: "SENSOR",
-                      type: "TEMPERATURE",
-                      unit: "°C",
-                    },
-                  ],
-                })
-              }
-            >
-              Agregar canal
-            </button>
-          )}
-        </fieldset>
-      )}
-      <label className="connection-checkbox">
-        <input
-          type="checkbox"
-          checked={draft.enabled}
-          onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
-        />
-        Equipo habilitado
-      </label>
-      <div className="connection-actions">
-        <button className="button primary" disabled={busy}>
-          {busy
-            ? "Guardando…"
-            : existing
-              ? "Guardar configuración"
-              : "Registrar equipo"}
-        </button>
-        <button className="button secondary" type="button" onClick={cancel}>
-          Cancelar
-        </button>
-      </div>
-    </form>
-  );
-}
 function ProvisionDialog({
   provision,
   close,
@@ -885,103 +466,169 @@ function ProvisionDialog({
   const credential = provision.credentials!,
     c = provision.connection,
     [copied, setCopied] = useState(""),
+    [downloaded, setDownloaded] = useState(false),
+    [downloadError, setDownloadError] = useState(""),
     host = window.location.hostname;
+  function download() {
+    let url: string | undefined;
+    try {
+      const file = new Blob(
+        [JSON.stringify(installerConfiguration(provision, host), null, 2)],
+        { type: "application/json" },
+      );
+      url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `homeguard-${c.id}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setDownloaded(true);
+      setDownloadError("");
+    } catch {
+      setDownloadError(
+        "No se pudo iniciar la descarga. Podés copiar la clave desde los detalles técnicos.",
+      );
+    } finally {
+      if (url) {
+        const address = url;
+        setTimeout(() => URL.revokeObjectURL(address), 1000);
+      }
+    }
+  }
+  async function copy() {
+    try {
+      if (!navigator.clipboard) throw new Error("clipboard unavailable");
+      await navigator.clipboard.writeText(credential.token);
+      setCopied("Clave copiada.");
+    } catch {
+      setCopied("Seleccioná la clave y copiala manualmente.");
+    }
+  }
   return (
-    <Dialog title="Credencial del equipo · guardar ahora" close={close}>
+    <Dialog title="Preparar conexión" close={close}>
+      <div className="connection-provision-result">
+        <CheckCircle2 size={28} />
+        <div>
+          <h3>{c.name} ya está registrado</h3>
+          <p className="muted">
+            Falta conectar el dispositivo para recibir sus datos.
+          </p>
+        </div>
+      </div>
+      <p>
+        Descargá la configuración y entregásela a quien instala el equipo.
+        Incluye los datos que necesita para vincularlo con HomeGuard.
+      </p>
       <Notice>
-        Este token se muestra una sola vez. Guardalo en el firmware del equipo;
-        para recuperarlo después tendrás que generar otro.
+        La clave privada se muestra una sola vez. Guardá el archivo y compartilo
+        solo con quien instala el equipo. Si lo perdés, podrás generar otra
+        clave desde Conexiones.
       </Notice>
-      <label>
-        Token del dispositivo
-        <textarea className="device-token" readOnly value={credential.token} />
-      </label>
-      <button
-        className="button secondary"
-        onClick={() =>
-          void navigator.clipboard.writeText(credential.token).then(
-            () => setCopied("Token copiado."),
-            () => setCopied("Seleccioná el token y copialo manualmente."),
-          )
-        }
-      >
-        Copiar token
+      <button className="button primary" onClick={download}>
+        <Download size={18} />
+        Descargar configuración
       </button>
-      {copied && <p role="status">{copied}</p>}
-      {c.transport === "HTTP" ? (
-        <>
-          <h3>Enlace HTTP</h3>
-          <p>
-            Base del equipo:{" "}
-            <code>
-              http://{host}:3000{credential.http_path}
-            </code>
-          </p>
-          <p>
-            Cabecera: <code>Authorization: Bearer TU_TOKEN</code>
-          </p>
-          <p>
-            POST <code>/telemetry</code> para lecturas; GET <code>/config</code>{" "}
-            para canales. Los actuadores consultan GET <code>/commands</code> y
-            responden POST <code>/ack</code>.
-          </p>
-        </>
-      ) : (
-        <>
-          <h3>Enlace MQTT</h3>
-          <p>
-            Servidor: <code>{host}:1883</code>
-          </p>
-          <p>
-            Usuario y clientId: <code>{credential.username}</code>. Contraseña:
-            el token. MQTT 3.1.1, clean session activado, sin retain ni will.
-          </p>
-          <dl>
-            <dt>Publicar lecturas</dt>
-            <dd>
-              <code>{credential.topics.telemetry}</code>
-            </dd>
-            <dt>Recibir comandos</dt>
-            <dd>
-              <code>{credential.topics.commands}</code>
-            </dd>
-            <dt>Publicar confirmaciones</dt>
-            <dd>
-              <code>{credential.topics.ack}</code>
-            </dd>
-          </dl>
-        </>
+      {downloaded && (
+        <p role="status" className="connection-download-success">
+          Descarga iniciada. Conservá el archivo para completar la instalación.
+        </p>
       )}
-      <h3>Primer mensaje</h3>
-      <p>
-        Este heartbeat acredita contacto sin inventar una medición. El firmware
-        debe generar un UUID distinto para cada mensaje.
-      </p>
-      <pre>
-        {JSON.stringify(
-          {
-            schema_version: "1.0",
-            message_id: "UUID-NUEVO-POR-MENSAJE",
-            heartbeat: true,
-            readings: [],
-          },
-          null,
-          2,
-        )}
-      </pre>
-      <p>
-        Canales configurados:{" "}
-        {c.channels.map((ch) => `${ch.key} (${ch.type})`).join(", ")}.
-      </p>
+      {downloadError && <Notice tone="error">{downloadError}</Notice>}
       <p className="muted text-small">
-        Para otro equipo de la red, usá la IP privada de esta PC y arrancá
-        HomeGuard con <code>Iniciar.ps1 -Interfaz TU_IP_PRIVADA</code>.
-        localhost siempre apunta al propio equipo. HTTP y MQTT locales no usan
-        cifrado: utilizalos en una red privada de pruebas; el acceso remoto
-        requiere HTTPS y TLS.
+        Registrar el equipo no lo conecta automáticamente. Quien lo instala debe
+        indicar la dirección de esta PC en la red.
       </p>
-      <button className="button primary" onClick={close}>
-        Ya guardé la credencial
+      <details className="connection-advanced connection-installer-details">
+        <summary>Ver detalles técnicos para el instalador</summary>
+        <label>
+          Token del dispositivo
+          <textarea
+            className="device-token"
+            readOnly
+            value={credential.token}
+          />
+        </label>
+        <button className="button secondary" onClick={() => void copy()}>
+          Copiar token
+        </button>
+        {copied && <p role="status">{copied}</p>}
+        {c.transport === "HTTP" ? (
+          <>
+            <h3>Enlace HTTP</h3>
+            <p>
+              Base del equipo:{" "}
+              <code>
+                http://{host}:3000{credential.http_path}
+              </code>
+            </p>
+            <p>
+              Cabecera: <code>Authorization: Bearer TU_TOKEN</code>
+            </p>
+            <p>
+              POST <code>/telemetry</code> para lecturas; GET{" "}
+              <code>/config</code> para canales. Los actuadores consultan GET{" "}
+              <code>/commands</code> y responden POST <code>/ack</code>.
+            </p>
+          </>
+        ) : (
+          <>
+            <h3>Enlace MQTT</h3>
+            <p>
+              Servidor: <code>{host}:1883</code>
+            </p>
+            <p>
+              Usuario y clientId: <code>{credential.username}</code>.
+              Contraseña: el token. MQTT 3.1.1, clean session activado, sin
+              retain ni will.
+            </p>
+            <dl>
+              <dt>Publicar lecturas</dt>
+              <dd>
+                <code>{credential.topics.telemetry}</code>
+              </dd>
+              <dt>Recibir comandos</dt>
+              <dd>
+                <code>{credential.topics.commands}</code>
+              </dd>
+              <dt>Publicar confirmaciones</dt>
+              <dd>
+                <code>{credential.topics.ack}</code>
+              </dd>
+            </dl>
+          </>
+        )}
+        <h3>Primer mensaje</h3>
+        <p>
+          Este heartbeat acredita contacto sin inventar una medición. El
+          firmware debe generar un UUID distinto para cada mensaje.
+        </p>
+        <pre>
+          {JSON.stringify(
+            {
+              schema_version: "1.0",
+              message_id: "UUID-NUEVO-POR-MENSAJE",
+              heartbeat: true,
+              readings: [],
+            },
+            null,
+            2,
+          )}
+        </pre>
+        <p>
+          Canales configurados:{" "}
+          {c.channels.map((ch) => `${ch.key} (${ch.type})`).join(", ")}.
+        </p>
+        <p className="muted text-small">
+          Para otro equipo de la red, usá la IP privada de esta PC y arrancá
+          HomeGuard con <code>Iniciar.ps1 -Interfaz TU_IP_PRIVADA</code>.
+          localhost siempre apunta al propio equipo. HTTP y MQTT locales no usan
+          cifrado: utilizalos en una red privada de pruebas; el acceso remoto
+          requiere HTTPS y TLS.
+        </p>
+      </details>
+      <button className="button secondary" onClick={close}>
+        Listo
       </button>
     </Dialog>
   );
