@@ -39,6 +39,8 @@ export const labels: Record<string, string> = {
   FAILED: "Falló",
   NEEDS_REVIEW: "Requiere revisión",
   ONLINE: "En línea",
+  WAITING: "Esperando datos",
+  DISABLED: "Deshabilitado",
   OFFLINE: "Sin conexión",
   NOT_REQUESTED: "No solicitado",
   PENDING: "Preparando",

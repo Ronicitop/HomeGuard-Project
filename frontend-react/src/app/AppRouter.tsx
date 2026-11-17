@@ -13,6 +13,7 @@ import { IncidentDetail } from "../features/emergencies/IncidentDetail";
 import { OperatorConsole } from "../features/emergencies/OperatorConsole";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { Loading, Notice } from "../shared/ui";
+import { ConnectionsPage } from "../features/connections/ConnectionsPage";
 function Allowed({
   children,
   admin = false,
@@ -43,6 +44,14 @@ function Screens() {
     <Routes>
       <Route element={<AppShell />}>
         <Route index element={<DashboardPage />} />
+        <Route
+          path="connections"
+          element={
+            <Allowed>
+              <ConnectionsPage />
+            </Allowed>
+          }
+        />
         <Route
           path="cameras"
           element={

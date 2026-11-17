@@ -11,6 +11,7 @@ const resident = new Set([
   "events.read",
   "events.update",
   "cameras.read",
+  "connections.read",
   "people.read",
   "people.update",
   "rules.read",

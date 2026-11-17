@@ -1,3 +1,4 @@
+import { createConnection, deleteConnection } from "../connections/registry";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import pool from "../db";
@@ -13,10 +14,10 @@ const digest = (token: string) =>
 const cameraId = z.number().int().positive();
 async function cameraOwned(ctx: AuthContext, id: number) {
   const camera = (
-    await pool.query("SELECT * FROM Camara WHERE id=$1 AND household_id=$2", [
-      id,
-      ctx.household_id,
-    ])
+    await pool.query(
+      "SELECT * FROM Camara WHERE id=$1 AND household_id=$2 AND enabled",
+      [id, ctx.household_id],
+    )
   ).rows[0];
   if (!camera) fail(404, "NOT_FOUND", "La cámara no corresponde a este hogar.");
   return camera;
@@ -50,7 +51,7 @@ async function vision(request: Request, ctx: AuthContext) {
     );
     const [c, p, e] = await Promise.all([
       pool.query(
-        "SELECT id,nombre,creado_en FROM Camara WHERE household_id=$1 ORDER BY id",
+        "SELECT id,nombre,creado_en,webcam_device_id FROM Camara WHERE household_id=$1 AND enabled ORDER BY id",
         [ctx.household_id],
       ),
       pool.query(
@@ -75,38 +76,18 @@ async function vision(request: Request, ctx: AuthContext) {
         })
         .strict(),
     );
+    const created = await createConnection(ctx, {
+      name: input.name,
+      kind: "CAMERA",
+      transport: "WEBCAM",
+      channels: [],
+    });
     return json(
-      await withTransaction(async (tx) => {
-        await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
-          `${ctx.household_id}:cameras`,
-        ]);
-        if (
-          (
-            await tx.query(
-              "SELECT count(*)::int n FROM Camara WHERE household_id=$1",
-              [ctx.household_id],
-            )
-          ).rows[0].n >= 10
-        )
-          fail(
-            409,
-            "CAMERA_LIMIT",
-            "Este prototipo admite hasta diez cámaras registradas.",
-          );
-        const camera = (
-          await tx.query(
-            "INSERT INTO Camara(nombre,household_id) VALUES($1,$2) RETURNING id,nombre,creado_en",
-            [input.name, ctx.household_id],
-          )
-        ).rows[0];
-        await audit(tx, ctx, "camera.created", String(camera.id), null, {
-          name: input.name,
-        });
-        return camera;
-      }),
+      { id: created.connection.camera_id, nombre: created.connection.name },
       201,
     );
   }
+
   if (request.method === "DELETE") {
     const input = await body(
       request,
@@ -119,27 +100,20 @@ async function vision(request: Request, ctx: AuthContext) {
     );
     if (input.type === "camera") {
       await cameraOwned(ctx, input.id);
-      await pool.query(
-        "UPDATE SesionCamara SET expira_en=now() WHERE camara_id=$1 AND household_id=$2",
-        [input.id, ctx.household_id],
-      );
-      await expireStreams();
-      if (
-        (
-          await pool.query("SELECT 1 FROM SesionCamara WHERE camara_id=$1", [
-            input.id,
-          ])
-        ).rowCount
-      )
+      const connection = (
+        await pool.query(
+          "SELECT id,revision FROM hg_connections WHERE camera_id=$1 AND household_id=$2 AND deleted_at IS NULL",
+          [input.id, ctx.household_id],
+        )
+      ).rows[0];
+      if (!connection)
         fail(
-          503,
-          "MEDIA_DISCONNECT_PENDING",
-          "La cámara todavía se está desconectando. Intentá de nuevo.",
+          409,
+          "CONNECTION_REQUIRED",
+          "Administrá esta cámara desde Conexiones.",
         );
-      await pool.query("DELETE FROM Camara WHERE id=$1 AND household_id=$2", [
-        input.id,
-        ctx.household_id,
-      ]);
+      await deleteConnection(ctx, connection.id, connection.revision);
+      await expireStreams();
     } else
       await pool.query(
         "DELETE FROM PerfilFacial WHERE id=$1 AND household_id=$2",
@@ -154,7 +128,7 @@ async function streams(request: Request, ctx: AuthContext) {
     return json(
       (
         await pool.query(
-          "SELECT c.id,c.nombre,EXISTS(SELECT 1 FROM SesionCamara s JOIN hg_sessions a ON a.id=s.auth_session_id WHERE s.camara_id=c.id AND s.tipo='publish' AND s.expira_en>now() AND a.revoked_at IS NULL AND a.expires_at>now()) conectada FROM Camara c WHERE c.household_id=$1 ORDER BY c.id",
+          "SELECT c.id,c.nombre,EXISTS(SELECT 1 FROM SesionCamara s JOIN hg_sessions a ON a.id=s.auth_session_id WHERE s.camara_id=c.id AND s.tipo='publish' AND s.media_id IS NOT NULL AND s.expira_en>now() AND a.revoked_at IS NULL AND a.expires_at>now()) conectada FROM Camara c WHERE c.household_id=$1 AND c.enabled ORDER BY c.id",
           [ctx.household_id],
         )
       ).rows,
@@ -181,7 +155,7 @@ async function streams(request: Request, ctx: AuthContext) {
   );
   if ("action" in input) {
     const result = await pool.query(
-      "UPDATE SesionCamara SET expira_en=CASE WHEN $4 THEN now() ELSE now()+interval '45 seconds' END WHERE token_hash=$1 AND usuario_id=$2 AND household_id=$3 AND auth_session_id=$5 AND expira_en>now() RETURNING id",
+      "UPDATE SesionCamara SET expira_en=CASE WHEN $4 THEN now() ELSE now()+interval '45 seconds' END WHERE token_hash=$1 AND usuario_id=$2 AND household_id=$3 AND auth_session_id=$5 AND expira_en>now() AND EXISTS(SELECT 1 FROM Camara c WHERE c.id=SesionCamara.camara_id AND c.enabled) RETURNING id",
       [
         digest(input.token),
         ctx.user_id,
@@ -384,9 +358,14 @@ export async function handleStreamAuth(request: Request) {
     if (type !== "process" && input.protocol !== "webrtc")
       return new Response(null, { status: 403 });
     const result = await pool.query(
-      "UPDATE SesionCamara s SET media_id=$4 FROM Usuario u,hg_sessions a,hg_memberships m WHERE s.usuario_id=u.id AND u.activo AND a.id=s.auth_session_id AND a.user_id=s.usuario_id AND a.household_id=s.household_id AND a.revoked_at IS NULL AND a.expires_at>now() AND m.household_id=s.household_id AND m.user_id=s.usuario_id AND m.enabled AND m.role IN ('ADMINISTRADOR','RESIDENTE') AND s.token_hash=$1 AND s.ruta=$2 AND s.tipo=$3 AND s.expira_en>now() AND (s.media_id IS NULL OR s.media_id=$4) RETURNING s.id",
+      "UPDATE SesionCamara s SET media_id=$4 FROM Usuario u,hg_sessions a,hg_memberships m,Camara c WHERE c.id=s.camara_id AND c.enabled AND c.household_id=s.household_id AND s.usuario_id=u.id AND u.activo AND a.id=s.auth_session_id AND a.user_id=s.usuario_id AND a.household_id=s.household_id AND a.revoked_at IS NULL AND a.expires_at>now() AND m.household_id=s.household_id AND m.user_id=s.usuario_id AND m.enabled AND m.role IN ('ADMINISTRADOR','RESIDENTE') AND s.token_hash=$1 AND s.ruta=$2 AND s.tipo=$3 AND s.expira_en>now() AND (s.media_id IS NULL OR s.media_id=$4) RETURNING s.id,s.camara_id,s.tipo",
       [digest(token), input.path, type, input.id],
     );
+    if (result.rows[0]?.tipo === "publish")
+      await pool.query(
+        "UPDATE hg_connections SET last_seen=now() WHERE camera_id=$1 AND enabled AND deleted_at IS NULL",
+        [result.rows[0].camara_id],
+      );
     return new Response(null, { status: result.rowCount ? 204 : 403 });
   } catch {
     return new Response(null, { status: 403 });

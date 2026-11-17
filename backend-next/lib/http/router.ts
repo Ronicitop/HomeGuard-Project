@@ -6,6 +6,7 @@ import { emergencyRoutes } from "./emergencyRoutes";
 import { memberRoutes } from "./memberRoutes";
 import { platformRoutes } from "./platformRoutes";
 import { notificationRoutes } from "./notificationRoutes";
+import { connectionRoutes, deviceRoutes } from "./connectionRoutes";
 import { requireSession, assertOrigin } from "../auth/sessionService";
 import { cors, json, errorResponse } from "./response";
 import { AppError } from "./errors";
@@ -19,6 +20,8 @@ export async function handleApi(
       return cors(new Response(null, { status: 204 }), request);
     const auth = await authRoute(request, segments.join("/"));
     if (auth) return cors(auth, request);
+    const device = await deviceRoutes(request, segments);
+    if (device) return cors(device, request);
     const ctx = await requireSession(request);
     for (const route of [
       eventRoutes,
@@ -27,6 +30,7 @@ export async function handleApi(
       memberRoutes,
       platformRoutes,
       notificationRoutes,
+      connectionRoutes,
     ]) {
       const response = await route(request, segments, ctx);
       if (response) return cors(response, request);

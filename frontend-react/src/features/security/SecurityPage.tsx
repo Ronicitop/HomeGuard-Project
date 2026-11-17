@@ -1,22 +1,18 @@
+import { Link } from "react-router-dom";
+import { ChannelReadings } from "../connections/ConnectionsPage";
+import type { Connection } from "../connections/models";
 import { useState } from "react";
 import {
   Shield,
   House,
   ShieldOff,
   Power,
-  Radio,
   PlugZap,
   Droplets,
   Volume2,
-  Activity,
 } from "lucide-react";
 import { useResource } from "../../shared/useResource";
-import type {
-  ModeView,
-  Actuator,
-  Page,
-  LegacyStatus,
-} from "../../shared/models";
+import type { ModeView, Actuator, Page } from "../../shared/models";
 import { api, errorMessage, refreshData } from "../../shared/api";
 import {
   PageTitle,
@@ -29,7 +25,7 @@ import {
 export function SecurityPage() {
   const mode = useResource<ModeView>("/mode", 10000),
     actuators = useResource<Page<Actuator>>("/actuators", 5000),
-    legacy = useResource<LegacyStatus>("/legacy/status", 10000);
+    connections = useResource<{ items: Connection[] }>("/connections", 5000);
   const [busy, setBusy] = useState(""),
     [message, setMessage] = useState("");
   async function changeMode(value: string) {
@@ -123,191 +119,152 @@ export function SecurityPage() {
         )}
       </Panel>
       <Panel
-        title="Actuadores"
-        description="Los comandos de esta demostración se confirman desde un simulador."
+        title="Sensores del hogar"
+        description="Mediciones recibidas de los equipos registrados. Una lectura anterior no garantiza el estado actual."
       >
-        <div className="actuator-grid">
-          {actuators.data?.items.map((a) => {
-            const Icon =
-              a.tipo === "SIRENA"
-                ? Volume2
-                : a.tipo === "VALVULA"
-                  ? Droplets
-                  : PlugZap;
-            const waiting = a.last_command?.status === "REQUESTED";
-            return (
-              <div className="actuator-card" key={a.codigo}>
-                <div className="actuator-top">
-                  <span className="device-icon">
-                    <Icon size={23} />
-                  </span>
-                  <span
-                    className={`state-dot ${a.estado_actual === "ON" ? "on" : ""}`}
-                  />
-                </div>
-                <h3>{a.nombre}</h3>
-                <p className="muted text-small">
-                  {a.estado_actual === "ON"
-                    ? "Estado encendido"
-                    : "Estado apagado"}
-                </p>
-                {a.last_command && (
-                  <div className="command-status">
-                    <Badge value={a.last_command.status} />
-                    <small>
-                      {a.last_command.confirmation_source === "SIMULATOR"
-                        ? "Confirmación del simulador"
-                        : waiting
-                          ? "Esperando confirmación"
-                          : ""}
-                    </small>
-                  </div>
-                )}
-                <button
-                  className="button secondary wide"
-                  disabled={Boolean(busy) || waiting}
-                  onClick={() => void command(a)}
-                >
-                  <Power size={16} />
-                  {busy === a.codigo
-                    ? "Enviando…"
-                    : waiting
-                      ? "Comando pendiente"
-                      : a.estado_actual === "ON"
-                        ? "Solicitar apagado"
-                        : "Solicitar encendido"}
-                </button>
+        {connections.error ? (
+          <ResourceError
+            message={connections.error}
+            retry={connections.reload}
+          />
+        ) : !connections.data ? (
+          <Loading />
+        ) : !connections.data.items.some((c) =>
+            c.channels.some((ch) => ch.kind === "SENSOR"),
+          ) ? (
+          <p className="muted">
+            Sin sensores reales vinculados.{" "}
+            <Link to="/connections">Configurar en Conexiones</Link>
+          </p>
+        ) : (
+          connections.data.items
+            .filter((c) => c.channels.some((ch) => ch.kind === "SENSOR"))
+            .map((c) => (
+              <div key={c.id}>
+                <h3>
+                  {c.name} · {c.location || "Sin ubicación"}
+                </h3>
+                <Badge value={c.status} />
+                <ChannelReadings
+                  connection={{
+                    ...c,
+                    channels: c.channels.filter((ch) => ch.kind === "SENSOR"),
+                  }}
+                  controls={false}
+                />
               </div>
-            );
-          })}
-        </div>
-        {actuators.error && (
-          <ResourceError message={actuators.error} retry={actuators.reload} />
+            ))
         )}
       </Panel>
-      <div className="equal-columns">
-        <Panel
-          title="Sensores del hogar"
-          description="Lecturas del sistema IoT existente."
-        >
-          <div className="sensor-list">
-            {legacy.data?.dispositivos.map((s) => (
-              <div className="sensor-row" key={s.tipo_sensor}>
-                <span className="sensor-dot">
-                  <Radio size={17} />
-                </span>
-                <strong>{s.tipo_sensor}</strong>
-                <span>
-                  {s.valor_numerico !== null
-                    ? `${s.valor_numerico} ${s.unidad || ""}`
-                    : (
-                        {
-                          CLOSED: "Cerrada",
-                          OPEN: "Abierta",
-                          NORMAL: "Normal",
-                          DRY: "Seco",
-                          MOTION_DETECTED: "Movimiento",
-                          SMOKE_DETECTED: "Humo",
-                          WATER_LEAK: "Agua detectada",
-                        } as Record<string, string>
-                      )[s.estado_texto] || s.estado_texto}
-                </span>
-              </div>
-            ))}
-            {!legacy.data?.dispositivos.length && (
-              <p className="muted">Todavía no hay lecturas de sensores.</p>
-            )}
-          </div>
-        </Panel>
-        <Panel
-          title="Consumo eléctrico"
-          description="Última lectura recibida por MQTT."
-        >
-          <div className="energy-reading">
-            <PlugZap size={28} />
-            <strong>
-              {legacy.data?.energia ? legacy.data.energia.potencia_w : "—"}
-              <small>W</small>
-            </strong>
-            <span>Potencia instantánea</span>
-          </div>
-          <div className="energy-meta">
-            <span>
-              Voltaje<strong>{legacy.data?.energia?.voltaje_v ?? "—"} V</strong>
-            </span>
-            <span>
-              Acumulado
-              <strong>{legacy.data?.energia?.energia_kwh ?? "—"} kWh</strong>
-            </span>
-          </div>
-        </Panel>
-      </div>
       <Panel
-        title="Distribución del hogar"
-        description="Ubicaciones del plano IoT existente."
+        title="Actuadores conectados"
+        description="Los comandos requieren contacto reciente y una confirmación enviada por el equipo."
       >
-        <svg
-          className="floor-plan"
-          viewBox="0 0 600 380"
-          role="img"
-          aria-label="Plano del hogar con ubicaciones de sensores"
-        >
-          <rect
-            x="20"
-            y="20"
-            width="560"
-            height="340"
-            rx="5"
-            fill="var(--surface-subtle)"
-            stroke="var(--border)"
-            strokeWidth="3"
+        {connections.error ? (
+          <ResourceError
+            message={connections.error}
+            retry={connections.reload}
           />
-          <path
-            d="M220 20V360M400 20V360M20 220H220M400 200H580"
-            fill="none"
-            stroke="var(--border)"
-            strokeWidth="3"
-          />
-          <text x="45" y="50">
-            SALA
-          </text>
-          <text x="45" y="250">
-            ENTRADA
-          </text>
-          <text x="250" y="50">
-            PASILLO
-          </text>
-          <text x="425" y="50">
-            COCINA
-          </text>
-          <text x="420" y="230">
-            LAVANDERÍA
-          </text>
-          {legacy.data?.plano2D.map((pin) => (
-            <g key={pin.id}>
-              <circle
-                cx={20 + pin.pos_x * 5.6}
-                cy={20 + pin.pos_y * 3.4}
-                r="9"
-                fill="var(--accent)"
-                stroke="white"
-                strokeWidth="3"
-              />
-              <text
-                x={20 + pin.pos_x * 5.6}
-                y={42 + pin.pos_y * 3.4}
-                textAnchor="middle"
-              >
-                {pin.etiqueta}
-              </text>
-            </g>
-          ))}
-        </svg>
-        <p className="text-small muted">
-          <Activity size={14} /> Las ubicaciones no sustituyen las zonas
-          configuradas para video.
-        </p>
+        ) : !connections.data ? (
+          <Loading />
+        ) : (
+          connections.data.items
+            .filter((c) => c.channels.some((ch) => ch.kind === "ACTUATOR"))
+            .map((c) => (
+              <div key={c.id}>
+                <h3>{c.name}</h3>
+                <Badge value={c.status} />
+                <ChannelReadings
+                  connection={{
+                    ...c,
+                    channels: c.channels.filter((ch) => ch.kind === "ACTUATOR"),
+                  }}
+                />
+              </div>
+            ))
+        )}
+        {!connections.error &&
+          connections.data &&
+          !connections.data.items.some((c) =>
+            c.channels.some((ch) => ch.kind === "ACTUATOR"),
+          ) && (
+            <p className="muted">
+              Sin actuadores reales vinculados.{" "}
+              <Link to="/connections">Agregar equipo</Link>
+            </p>
+          )}
       </Panel>
+      <details className="panel">
+        <summary>Demostración de actuadores · estados simulados</summary>
+        <p className="muted">
+          Estos controles pertenecen al simulador universitario. No representan
+          equipos físicos. El simulador se inicia explícitamente con
+          -ConSimulador.
+        </p>
+        <Panel
+          title="Actuadores simulados"
+          description="Los comandos de esta demostración se confirman desde un simulador."
+        >
+          <div className="actuator-grid">
+            {actuators.data?.items.map((a) => {
+              const Icon =
+                a.tipo === "SIRENA"
+                  ? Volume2
+                  : a.tipo === "VALVULA"
+                    ? Droplets
+                    : PlugZap;
+              const waiting = a.last_command?.status === "REQUESTED";
+              return (
+                <div className="actuator-card" key={a.codigo}>
+                  <div className="actuator-top">
+                    <span className="device-icon">
+                      <Icon size={23} />
+                    </span>
+                    <span
+                      className={`state-dot ${a.estado_actual === "ON" ? "on" : ""}`}
+                    />
+                  </div>
+                  <h3>{a.nombre}</h3>
+                  <p className="muted text-small">
+                    {a.estado_actual === "ON"
+                      ? "Estado encendido"
+                      : "Estado apagado"}
+                  </p>
+                  {a.last_command && (
+                    <div className="command-status">
+                      <Badge value={a.last_command.status} />
+                      <small>
+                        {a.last_command.confirmation_source === "SIMULATOR"
+                          ? "Confirmación del simulador"
+                          : waiting
+                            ? "Esperando confirmación"
+                            : ""}
+                      </small>
+                    </div>
+                  )}
+                  <button
+                    className="button secondary wide"
+                    disabled={Boolean(busy) || waiting}
+                    onClick={() => void command(a)}
+                  >
+                    <Power size={16} />
+                    {busy === a.codigo
+                      ? "Enviando…"
+                      : waiting
+                        ? "Comando pendiente"
+                        : a.estado_actual === "ON"
+                          ? "Solicitar apagado"
+                          : "Solicitar encendido"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {actuators.error && (
+            <ResourceError message={actuators.error} retry={actuators.reload} />
+          )}
+        </Panel>
+      </details>
     </>
   );
 }

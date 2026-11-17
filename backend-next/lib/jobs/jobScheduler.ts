@@ -8,6 +8,7 @@ import {
 import { openIncident } from "../emergencies/incidentService";
 import { renderCallSpeech } from "../emergencies/voiceService";
 import { requestAutomaticCommand } from "../actuators/commandService";
+import { dispatchDeviceCommand } from "../connections/commands";
 
 export interface JobTransport {
   publish(topic: string, payload: unknown): Promise<void>;
@@ -78,6 +79,9 @@ export async function runJob(job: any, transport: JobTransport) {
       ).rows[0]
     : null;
   switch (job.kind) {
+    case "DEVICE_COMMAND":
+      await dispatchDeviceCommand(job, transport.publish);
+      return;
     case "PUSH":
       if (event && (await effectStillAllowed(event, "notify_requested")))
         await queueNotifications(event);

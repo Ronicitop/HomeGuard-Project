@@ -1,3 +1,5 @@
+import { drainDeviceInbox } from "../lib/connections/inbox";
+import { expireDeviceCommands } from "../lib/connections/commands";
 import { randomUUID } from "node:crypto";
 import mqtt from "mqtt";
 import pool from "../lib/db";
@@ -62,6 +64,8 @@ async function main() {
     "jobs/clip/failed",
     "actuators/ack",
     "iot/telemetry",
+    "devices/+/telemetry",
+    "devices/+/ack",
   ];
   const waiters = new Map<
     string,
@@ -75,9 +79,14 @@ async function main() {
   const publish = (topic: string, data: unknown) =>
     new Promise<void>((yes, no) => {
       if (!client.connected) return no(new Error("MQTT_OFFLINE"));
-      client.publish(topic, JSON.stringify(data), { qos: 1 }, (e) =>
-        e ? no(e) : yes(),
+      const timeout = setTimeout(
+        () => no(new Error("MQTT_PUBLISH_TIMEOUT")),
+        5000,
       );
+      client.publish(topic, JSON.stringify(data), { qos: 1 }, (e) => {
+        clearTimeout(timeout);
+        e ? no(e) : yes();
+      });
     });
   async function waitResult(
     id: string,
@@ -180,7 +189,10 @@ async function main() {
       const data = JSON.parse(bytes.toString());
       if (data.household_id !== undefined && data.household_id !== home)
         throw new Error("TOPIC_SCOPE_MISMATCH");
-      if (kind === "detections/proposed") {
+      if (parts[3] === "devices" && parts.length === 6) {
+        // Device packets were committed by the broker before PUBACK. The durable
+        // inbox is processed independently, including after disconnected workers.
+      } else if (kind === "detections/proposed") {
         const result = await ingestDetection(data, home);
         await publish(`homeguard/v1/${home}/detections/ack`, {
           schema_version: "1.0",
@@ -270,6 +282,21 @@ async function main() {
       busy = false;
     }
   }
+  let devicesBusy = false;
+  const deviceTimer = setInterval(async () => {
+    if (devicesBusy || stopping) return;
+    devicesBusy = true;
+    try {
+      await expireDeviceCommands();
+      await drainDeviceInbox();
+    } catch {
+      console.error(
+        "Procesador: entrada de equipos pendiente; se reintentará.",
+      );
+    } finally {
+      devicesBusy = false;
+    }
+  }, 500);
   const timer = setInterval(tick, 500);
   // A slow clip/voice/provider job must not delay the independent response deadline.
   const deadlineTimer = setInterval(
@@ -299,13 +326,14 @@ async function main() {
     if (stopping) return;
     stopping = true;
     clearInterval(timer);
+    clearInterval(deviceTimer);
     clearInterval(deadlineTimer);
     clearInterval(receiptTimer);
     clearInterval(streamTimer);
     clearInterval(heartbeat);
     for (const w of waiters.values()) w.reject(new Error("PROCESS_STOPPING"));
     client.end();
-    for (let i = 0; busy && i < 50; i++)
+    for (let i = 0; (busy || devicesBusy) && i < 50; i++)
       await new Promise((r) => setTimeout(r, 100));
     await lock.query("SELECT pg_advisory_unlock(716403992)");
     lock.release();
@@ -314,7 +342,7 @@ async function main() {
   }
   for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, stop);
   console.log(
-    "Procesador HomeGuard listo; llamadas y actuadores exclusivamente simulados.",
+    "Procesador HomeGuard listo; llamadas simuladas; equipos reales aislados por credencial.",
   );
 }
 main().catch(() => {

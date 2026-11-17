@@ -1,4 +1,4 @@
-param([switch]$SinNavegador,[string]$Interfaz='127.0.0.1')
+param([switch]$SinNavegador,[string]$Interfaz='127.0.0.1',[switch]$ConSimulador)
 $ErrorActionPreference='Stop';$projectRoot=$PSScriptRoot
 . (Join-Path $projectRoot 'scripts\SafeProcess.ps1')
 if ($Interfaz -ne '127.0.0.1') {
@@ -6,6 +6,8 @@ if ($Interfaz -ne '127.0.0.1') {
     $private=$Interfaz -match '^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)'
     if (-not $private -or -not (Get-NetIPAddress -IPAddress $Interfaz -ErrorAction SilentlyContinue)) { throw 'Selecciona una IP privada asignada a esta PC.' }
 }
+$env:API_PROXY_TARGET="http://${Interfaz}:3000"
+$env:HG_MQTT_LAN_IP=if($Interfaz -ne '127.0.0.1'){$Interfaz}else{''}
 if($Interfaz -ne '127.0.0.1'){$env:HG_WEB_ORIGIN="http://${Interfaz}:5173,http://localhost:5173,http://127.0.0.1:5173"}
 $nodeExe=(Get-Command node.exe).Source;$logs=Join-Path $projectRoot '.local\logs'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
@@ -30,8 +32,9 @@ Start-HomeGuardNode 'mqtt' (Join-Path $projectRoot 'scripts\broker.cjs') @() 188
 $backend=Join-Path $projectRoot 'backend-next'
 Start-HomeGuardNode 'backend' (Join-Path $backend 'node_modules\next\dist\bin\next') @('start','-H',$Interfaz,'-p','3000') 3000 $backend
 Start-HomeGuardNode 'worker' (Join-Path $backend 'workers\eventProcessor.ts') @() 0 $backend -Tsx
-Start-HomeGuardNode 'simulator' (Join-Path $backend 'workers\actuatorSimulator.ts') @() 0 $backend -Tsx
+if($ConSimulador){Start-HomeGuardNode 'simulator' (Join-Path $backend 'workers\actuatorSimulator.ts') @() 0 $backend -Tsx}
 Start-HomeGuardNode 'frontend' (Join-Path $projectRoot 'frontend-react\node_modules\vite\bin\vite.js') @('preview','--host',$Interfaz,'--port','5173','--strictPort') 5173 (Join-Path $projectRoot 'frontend-react')
-Write-Host "HomeGuard disponible en http://${Interfaz}:5173 - Demo universitaria"
+Write-Host "HomeGuard disponible en http://${Interfaz}:5173 - Prototipo universitario"
+Write-Host 'Conexiones permite equipos MQTT/HTTP y webcams. El simulador solo inicia con -ConSimulador.'
 Write-Host 'Camaras incorporadas. Video/IA requieren MediaMTX e inference; Codex y push requieren configuracion adicional.'
 if(-not $SinNavegador){Start-Process "http://${Interfaz}:5173"}

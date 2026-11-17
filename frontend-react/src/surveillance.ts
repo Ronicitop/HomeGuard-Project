@@ -103,3 +103,11 @@ export async function connectRTC(
     throw e;
   }
 }
+
+export function webcamSource(
+  selection: string | undefined,
+  saved: string | null | undefined,
+): MediaTrackConstraints {
+  const id = selection ?? saved;
+  return id ? { deviceId: { exact: id } } : {};
+}

@@ -23,6 +23,7 @@ import {
   Menu,
   X,
   LockKeyhole,
+  Plug,
 } from "lucide-react";
 import { useSession } from "./SessionProvider";
 import { API_BASE, refreshData, errorMessage } from "../shared/api";
@@ -30,6 +31,7 @@ import { Notice } from "../shared/ui";
 const navigation = [
   { path: "/", label: "Resumen", icon: LayoutDashboard },
   { path: "/cameras", label: "Cámaras", icon: Camera },
+  { path: "/connections", label: "Conexiones", icon: Plug },
   { path: "/people", label: "Personas", icon: Users },
   { path: "/movements", label: "Movimientos", icon: Footprints },
   { path: "/events", label: "Eventos", icon: History },
@@ -57,6 +59,7 @@ export function AppShell() {
       "health.updated",
       "clip.updated",
       "sync_required",
+      "connection.updated",
     ])
       source.addEventListener(name, refreshData);
     return () => source.close();
@@ -185,7 +188,7 @@ export function AppShell() {
             )}
             <span className="demo-pill">
               <span />
-              Demostración
+              Prototipo universitario
             </span>
             <div className="user-profile">
               <span className="user-avatar">{user.nombre.slice(0, 1)}</span>

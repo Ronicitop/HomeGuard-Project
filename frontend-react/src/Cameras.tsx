@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { lease, connectRTC } from "./surveillance";
+import { Link, useSearchParams } from "react-router-dom";
+import { lease, connectRTC, webcamSource } from "./surveillance";
 import { cameraRequest } from "./shared/api";
 import "./Cameras.css";
-type Camera = { id: number; nombre: string; conectada?: boolean };
+type Camera = {
+  id: number;
+  nombre: string;
+  conectada?: boolean;
+  webcam_device_id?: string | null;
+};
 type Result = {
   status: string;
   generation?: string;
@@ -29,17 +35,16 @@ const labels: Record<string, string> = {
   unavailable: "Análisis no disponible",
 };
 export default function Cameras({ admin }: { admin: boolean }) {
+  const [params] = useSearchParams();
   const [view, setView] = useState<"remote" | "publish" | "local">("remote"),
     [cameras, setCameras] = useState<Camera[]>([]),
-    [camera, setCamera] = useState(0),
+    [camera, setCamera] = useState(Number(params.get("camera")) || 0),
     [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
-    [device, setDevice] = useState(""),
-    [deleteCamera, setDeleteCamera] = useState(false),
+    [device, setDevice] = useState<string | undefined>(undefined),
     [front, setFront] = useState(false),
     [active, setActive] = useState(false),
     [connected, setConnected] = useState(false),
     [message, setMessage] = useState("Selecciona una cámara para comenzar."),
-    [cameraName, setCameraName] = useState(""),
     [name, setName] = useState(""),
     [consent, setConsent] = useState(false),
     [result, setResult] = useState<Result>({
@@ -78,7 +83,13 @@ export default function Cameras({ admin }: { admin: boolean }) {
         }>("/api/vision?page=" + n),
         api<Camera[]>("/api/streams"),
       ]).then(([d, c]) => {
-        setCameras(c);
+        setCameras(
+          c.map((item) => ({
+            ...item,
+            webcam_device_id: d.cameras.find((cam) => cam.id === item.id)
+              ?.webcam_device_id,
+          })),
+        );
         setProfiles(d.profiles);
         setEvents(d.events);
         setCamera((v) => v || d.cameras[0]?.id || 0);
@@ -187,8 +198,11 @@ export default function Cameras({ admin }: { admin: boolean }) {
       } else {
         media = await navigator.mediaDevices.getUserMedia({
           video: {
-            ...(device && view === "local"
-              ? { deviceId: { exact: device } }
+            ...(view === "local"
+              ? webcamSource(
+                  device,
+                  cameras.find((c) => c.id === camera)?.webcam_device_id,
+                )
               : { facingMode: front ? "user" : "environment" }),
             width: { ideal: 640, max: 640 },
             height: { ideal: 480, max: 480 },
@@ -299,6 +313,7 @@ export default function Cameras({ admin }: { admin: boolean }) {
                 onChange={(e) => {
                   stop();
                   setCamera(+e.target.value);
+                  setDevice(undefined);
                 }}
               >
                 <option value={0}>Selecciona una cámara</option>
@@ -315,7 +330,16 @@ export default function Cameras({ admin }: { admin: boolean }) {
                 Origen
                 <select
                   disabled={active}
-                  value={view === "local" ? device : front ? "front" : "back"}
+                  value={
+                    view === "local"
+                      ? (device ??
+                        cameras.find((c) => c.id === camera)
+                          ?.webcam_device_id ??
+                        "")
+                      : front
+                        ? "front"
+                        : "back"
+                  }
                   onChange={(e) =>
                     view === "local"
                       ? setDevice(e.target.value)
@@ -432,74 +456,11 @@ export default function Cameras({ admin }: { admin: boolean }) {
         </section>
         <aside className="camera-side">
           <section className="card">
-            <h3>Nueva cámara</h3>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                try {
-                  await api("/api/vision", {
-                    action: "camera",
-                    name: cameraName,
-                  });
-                  setCameraName("");
-                  await refresh();
-                } catch (err) {
-                  setMessage((err as Error).message);
-                }
-              }}
-            >
-              <label>
-                Nombre
-                <input
-                  maxLength={100}
-                  required
-                  value={cameraName}
-                  onChange={(e) => setCameraName(e.target.value)}
-                  placeholder="Entrada principal"
-                />
-              </label>
-              <button disabled={active}>Crear cámara</button>
-            </form>
-            {admin && !!camera && (
-              <div>
-                {deleteCamera ? (
-                  <>
-                    <p>¿Eliminar esta cámara y su historial?</p>
-                    <div className="camera-actions">
-                      <button
-                        disabled={active}
-                        onClick={async () => {
-                          try {
-                            await api(
-                              "/api/vision",
-                              { type: "camera", id: camera },
-                              "DELETE",
-                            );
-                            setCamera(0);
-                            setDeleteCamera(false);
-                            await refresh();
-                          } catch (e) {
-                            setMessage((e as Error).message);
-                          }
-                        }}
-                      >
-                        Confirmar eliminación
-                      </button>
-                      <button onClick={() => setDeleteCamera(false)}>
-                        Cancelar
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <button
-                    disabled={active}
-                    onClick={() => setDeleteCamera(true)}
-                  >
-                    Eliminar cámara seleccionada
-                  </button>
-                )}
-              </div>
-            )}
+            <h3>Equipos conectados</h3>
+            <p>Registrá, configurá o eliminá las cámaras en Conexiones.</p>
+            <Link className="button secondary" to="/connections">
+              Abrir Conexiones
+            </Link>
           </section>
           {admin && view !== "publish" && (
             <section className="card">

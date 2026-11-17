@@ -11,13 +11,21 @@ test("camera branch uses the existing login and can register and remove a webcam
     .fill(process.env.HG_E2E_PASSWORD || "HomeGuard2026!");
   await page.getByRole("button", { name: "Entrar al panel" }).click();
   await expect(page.getByRole("heading", { name: /Tu hogar,/ })).toBeVisible();
-  await page.getByRole("link", { name: "Cámaras", exact: true }).click();
+  await page.getByRole("link", { name: "Conexiones", exact: true }).click();
+  const name = `Webcam integración ${Date.now()}`;
+  await page.getByRole("button", { name: "Agregar equipo" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Nombre", { exact: true }).fill(name);
+  await dialog.getByLabel("Tipo de equipo").selectOption("CAMERA");
+  await dialog.getByRole("button", { name: "Registrar equipo" }).click();
+  const card = page
+    .locator(".panel")
+    .filter({ has: page.getByRole("heading", { name, exact: true }) });
+  await expect(card).toContainText("Esperando datos");
+  await card.getByRole("link", { name: "Abrir cámara" }).click();
   await expect(
     page.getByRole("heading", { name: "Cámaras", exact: true }),
   ).toBeVisible();
-  const name = `Webcam integración ${Date.now()}`;
-  await page.locator(".camera-side form input").fill(name);
-  await page.getByRole("button", { name: "Crear cámara", exact: true }).click();
   await expect(
     page.locator(".camera-toolbar select option").filter({ hasText: name }),
   ).toHaveCount(1);
@@ -27,11 +35,11 @@ test("camera branch uses the existing login and can register and remove a webcam
       (p: Record<string, unknown>) => !("descriptores" in p),
     ),
   ).toBe(true);
-  await page.locator(".camera-toolbar select").selectOption({ label: name });
-  await page
-    .getByRole("button", { name: "Eliminar cámara seleccionada" })
-    .click();
+  await page.getByRole("link", { name: "Conexiones", exact: true }).click();
+  await card.getByRole("button", { name: "Eliminar", exact: true }).click();
   await page.getByRole("button", { name: "Confirmar eliminación" }).click();
+  await expect(card).toHaveCount(0);
+  await page.getByRole("link", { name: "Cámaras", exact: true }).click();
   await expect(
     page.locator(".camera-toolbar select option").filter({ hasText: name }),
   ).toHaveCount(0);
