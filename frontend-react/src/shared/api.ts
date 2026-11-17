@@ -19,6 +19,7 @@ async function request<T>(
   path: string,
   value?: unknown,
   signal?: AbortSignal,
+  base = API_BASE,
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (value !== undefined) headers["Content-Type"] = "application/json";
@@ -29,7 +30,7 @@ async function request<T>(
   }
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(`${base}${path}`, {
       method,
       headers,
       credentials: "include",
@@ -76,4 +77,13 @@ export const errorMessage = (error: unknown) =>
     : "Ocurrió un problema. Volvé a intentar.";
 export function refreshData() {
   window.dispatchEvent(new Event("hg:refresh"));
+}
+
+export function cameraRequest<T = unknown>(
+  path: string,
+  method = "GET",
+  value?: unknown,
+  signal?: AbortSignal,
+) {
+  return request<T>(method, path, value, signal, API_BASE.replace(/\/v1$/, ""));
 }

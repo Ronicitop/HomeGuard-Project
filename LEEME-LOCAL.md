@@ -1,5 +1,7 @@
 # Ejecutar HomeGuard en esta PC
 
+Actualización: las ramas tiago/main/camaras ya están unidas localmente. Ver [INTEGRACION-TIAGO.md](INTEGRACION-TIAGO.md) para el estado actual y las pruebas de cámaras; la entrega B original se conserva como historial.
+
 La mitad B está en `feat/mitad-b`, sobre el repositorio original. Abrí **Iniciar HomeGuard.cmd** o ejecutá `powershell -ExecutionPolicy Bypass -File .\Iniciar.ps1`. Web: http://127.0.0.1:5173 (también localhost:5173).
 
 Cuenta de demo: **admin@homeguard.local**, contraseña inicial **HomeGuard2026!**. Se almacena scrypt; el seed conserva una contraseña ya cambiada.

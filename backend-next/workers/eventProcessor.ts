@@ -23,6 +23,7 @@ import {
 } from "../lib/emergencies/incidentService";
 import { recoverNotificationAttempts } from "../lib/notifications/deliveryService";
 import { fail } from "../lib/http/errors";
+import { expireStreams } from "../lib/streams";
 import { reconcileReceipts } from "../lib/notifications/receiptsService";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -279,6 +280,13 @@ async function main() {
     500,
   );
   const receiptTimer = setInterval(() => void reconcileReceipts(), 60000);
+  const streamTimer = setInterval(
+    () =>
+      void expireStreams().catch(() =>
+        console.error("No se pudo limpiar la sesión de video."),
+      ),
+    5000,
+  );
   const heartbeat = setInterval(async () => {
     try {
       await pool.query(
@@ -293,6 +301,7 @@ async function main() {
     clearInterval(timer);
     clearInterval(deadlineTimer);
     clearInterval(receiptTimer);
+    clearInterval(streamTimer);
     clearInterval(heartbeat);
     for (const w of waiters.values()) w.reject(new Error("PROCESS_STOPPING"));
     client.end();

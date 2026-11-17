@@ -26,7 +26,10 @@ export function buildIncidentSpeech(incident: {
   return `Este es un aviso automatizado de HomeGuard en modo demostración. Se observó una posible caída, a las ${time}. Dirección de prueba: ${String(p.address || "sin configurar").slice(0, 300)}. Responsable de prueba: ${String(p.contact_name || "sin configurar").slice(0, 100)}. No se recibió confirmación de bienestar. Este aviso corresponde a una central simulada.`;
 }
 export const voiceDirectory = () =>
-  resolve(process.env.HG_VOICE_CACHE || "../.local/private-voice");
+  resolve(
+    /* turbopackIgnore: true */ process.env.HG_VOICE_CACHE ||
+      "../.local/private-voice",
+  );
 export async function renderCallSpeech(callId: string, home: string) {
   if (!/^[0-9a-f-]{36}$/i.test(callId))
     fail(400, "INVALID_CALL", "Identificador no válido.");

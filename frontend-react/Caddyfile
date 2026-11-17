@@ -1,0 +1,21 @@
+{$SITE_ADDRESS:localhost} {
+ handle_path /media/* {
+  reverse_proxy mediamtx:8889
+ }
+ handle /api/* {
+  request_body {
+   max_size 256KB
+  }
+  reverse_proxy backend:3000
+ }
+ handle {
+  root * /srv
+  try_files {path} /index.html
+  file_server
+ }
+ header {
+  X-Content-Type-Options nosniff
+  Referrer-Policy same-origin
+  Permissions-Policy "camera=(self), microphone=()"
+ }
+}

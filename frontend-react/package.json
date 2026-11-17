@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "test:responsive": "node scripts/responsive.mjs"
   },
   "dependencies": {
     "lucide-react": "1.73.0",

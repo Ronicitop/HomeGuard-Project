@@ -33,5 +33,5 @@ Start-HomeGuardNode 'worker' (Join-Path $backend 'workers\eventProcessor.ts') @(
 Start-HomeGuardNode 'simulator' (Join-Path $backend 'workers\actuatorSimulator.ts') @() 0 $backend -Tsx
 Start-HomeGuardNode 'frontend' (Join-Path $projectRoot 'frontend-react\node_modules\vite\bin\vite.js') @('preview','--host',$Interfaz,'--port','5173','--strictPort') 5173 (Join-Path $projectRoot 'frontend-react')
 Write-Host "HomeGuard disponible en http://${Interfaz}:5173 - Demo universitaria"
-Write-Host 'Vision, medios y Codex se incorporan con la mitad A. Push requiere configuracion externa.'
+Write-Host 'Camaras incorporadas. Video/IA requieren MediaMTX e inference; Codex y push requieren configuracion adicional.'
 if(-not $SinNavegador){Start-Process "http://${Interfaz}:5173"}

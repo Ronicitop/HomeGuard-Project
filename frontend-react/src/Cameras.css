@@ -1,0 +1,192 @@
+.cameras {
+  display: grid;
+  gap: 22px;
+  text-align: left;
+}
+.cameras .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 23px;
+}
+.cameras .camera-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.cameras .camera-tabs,
+.cameras .camera-actions,
+.cameras .camera-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 15px 0;
+}
+.cameras button {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--text);
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.cameras button.primary {
+  background: var(--accent);
+  color: #fff;
+}
+.cameras button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.cameras button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cameras input,
+.cameras select {
+  max-width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+.cameras label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cameras .camera-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.cameras .camera-side {
+  display: grid;
+  gap: 20px;
+}
+.cameras .camera-side .card,
+.cameras form {
+  display: grid;
+  gap: 14px;
+}
+.cameras .video-stage {
+  background: #102924;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+}
+.cameras .video-frame {
+  width: 100%;
+  position: relative;
+  aspect-ratio: 4/3;
+}
+.cameras video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cameras .detection-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.cameras .detection-layer rect {
+  fill: none;
+  stroke: #34d399;
+  stroke-width: 3;
+}
+.cameras .detection-layer text {
+  fill: white;
+  stroke: #102924;
+  stroke-width: 3;
+  paint-order: stroke;
+  font-size: 17px;
+  font-weight: 700;
+}
+.cameras .detection-layer .unknown rect {
+  stroke: #fbbf24;
+}
+.cameras .video-empty {
+  position: absolute;
+  text-align: center;
+  color: #e2e8f0;
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  pointer-events: none;
+}
+.cameras .check {
+  flex-direction: row;
+  align-items: center;
+}
+.cameras .check input {
+  min-height: 0;
+}
+.cameras .notice,
+.cameras .analysis-status {
+  padding: 12px;
+  border-radius: 9px;
+  background: var(--surface-subtle);
+}
+.cameras .analysis-status {
+  border-left: 3px solid var(--accent);
+}
+.cameras .warning {
+  color: #92400e;
+  background: #fffbeb;
+}
+.cameras .event-list,
+.cameras .profile-list {
+  list-style: none;
+  padding: 0;
+}
+.cameras .event-list li,
+.cameras .profile-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+  flex-wrap: wrap;
+}
+.cameras .event-list time {
+  font-size: 12px;
+  color: var(--muted);
+}
+.cameras .empty-state {
+  text-align: center;
+  padding: 24px;
+}
+@media (max-width: 1050px) {
+  .cameras .camera-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .cameras .card {
+    padding: 16px;
+  }
+  .cameras .camera-tabs button {
+    flex: 1 1 100%;
+  }
+  .cameras .camera-toolbar label {
+    width: 100%;
+  }
+  .cameras .camera-actions button {
+    flex: 1;
+  }
+  .cameras .video-stage {
+    min-height: 180px;
+  }
+}

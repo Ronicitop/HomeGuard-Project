@@ -21,3 +21,11 @@ test-results/
 *.keystore
 *.jks
 !.env.example
+
+# Camera branch private deployment files and downloaded models
+.env.*
+!**/.env.example
+!.env.production.example
+inference/models/
+inference/.cache/
+certs/

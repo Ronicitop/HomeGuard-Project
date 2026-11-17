@@ -1,0 +1,9 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {compatible,normalize,confirm,version,classify} from './logic.mjs';
+test('legacy descriptor compatibility rejects malformed and mismatched models',()=>{assert(compatible({modelo:version,descriptores:Array.from({length:5},()=>Array(1024).fill(.1))}));assert(!compatible({modelo:'other',descriptores:[]}));assert(!compatible({modelo:version,descriptores:[[NaN]]}));});
+test('temporal confirmation resets and deduplicates',()=>{const seen=new Map(),d={category:'unknown'};assert(!confirm(seen,d,100000,3000));assert(!confirm(seen,d,100500,3000));assert(confirm(seen,d,101000,3000));assert(!confirm(seen,d,101500,3000));assert(!confirm(seen,d,140000,3000));assert(!confirm(seen,d,140500,3000));assert(confirm(seen,d,141000,3000));});
+test('boxes use canonical letterboxed dimensions',()=>assert.deepEqual(normalize([160,120,320,240]),[.25,.25,.5,.5]));
+
+const face={box:[100,100,100,100],score:.95,embedding:Array(1024).fill(.1)},person={class:'person',score:.9,bbox:[0,0,400,480]},cat={class:'cat',score:.9,bbox:[400,200,100,100]};
+test('person with no usable face stays unidentified alongside pet',()=>assert.deepEqual(classify([person,cat],[{...face,embedding:undefined}],[],()=>0).map(d=>d.category),['person','cat']));
+test('valid unregistered face is unknown; recognized face replaces person box',()=>{assert.deepEqual(classify([person,cat],[face],[],()=>0).map(d=>d.category),['cat','unknown']);const p={id:1,nombre:'Ana',modelo:version,descriptores:Array.from({length:5},()=>Array(1024).fill(.1))};assert.deepEqual(classify([person,cat],[face],[p],()=>.8).map(d=>d.category),['cat','resident']);});
+test('facial degradation preserves object detection',()=>assert.deepEqual(classify([person,cat],[],[],()=>0).map(d=>d.category),['person','cat']));

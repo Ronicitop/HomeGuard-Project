@@ -24,10 +24,10 @@ async function main() {
       });
     checks.push({
       service: "Vision/medios",
-      status: (await pool.query("SELECT to_regclass('hg_cameras') t")).rows[0].t
-        ? "INSTALLED"
-        : "PENDING_A",
-      detail: "Servicio de A",
+      status: (await pool.query("SELECT to_regclass('camara') t")).rows[0].t
+        ? "CAMERA_MODULE_INSTALLED"
+        : "PENDING_MIGRATION",
+      detail: "Video/IA: requieren MediaMTX e inference en ejecución",
     });
   } catch {
     checks.push({
