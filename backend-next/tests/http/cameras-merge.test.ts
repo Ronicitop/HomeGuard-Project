@@ -211,3 +211,105 @@ test("inference cannot store detections against a camera or profile from another
     (await pool.query("SELECT count(*)::int n FROM EventoCamara")).rows[0].n,
   ).toBe(before);
 });
+
+test("detection settings are scoped to the household and only an admin can toggle them", async () => {
+  const created = await call("vision", "POST", {
+    action: "camera",
+    name: "Ajustes",
+  });
+  const id = (await created.json()).id;
+  const input = { cameraId: id, feature: "posture", enabled: true };
+  for (const user of [2, 3])
+    expect((await call("camera-settings", "POST", input, user)).status).toBe(
+      403,
+    );
+  const foreign = (
+    await pool.query(
+      "INSERT INTO Camara(nombre,household_id) VALUES('Ajustes privados',$1) RETURNING id",
+      [OTHER],
+    )
+  ).rows[0].id;
+  expect(
+    (await call("camera-settings", "POST", { ...input, cameraId: foreign }))
+      .status,
+  ).toBe(404);
+  const updated = await call("camera-settings", "POST", input);
+  expect(updated.status).toBe(200);
+  const cameras = await (await call("streams", "GET", undefined, 2)).json();
+  expect(
+    cameras.find((c: { id: number }) => c.id === id).detection_settings,
+  ).toEqual({
+    people: true,
+    faces: true,
+    pets: true,
+    motion: false,
+    posture: true,
+  });
+});
+
+test("movement events reject disabled and stale revisions; equivalent observations deduplicate per track", async () => {
+  const { storeEvent } = await import("../../../inference/events.mjs");
+  const { randomUUID } = await import("node:crypto");
+  const session = await createSession(1, HOME);
+  const context = await requireSession(
+    new Request("http://localhost/api/v1/auth/me", {
+      headers: { authorization: "Bearer " + session.token },
+    }),
+  );
+  const publisher = randomUUID(),
+    processor = randomUUID();
+  await pool.query("DELETE FROM SesionCamara");
+  for (const [id, type] of [
+    [publisher, "publish"],
+    [processor, "process"],
+  ]) {
+    await pool.query(
+      "INSERT INTO SesionCamara(id,token_hash,camara_id,usuario_id,tipo,ruta,expira_en,household_id,auth_session_id) VALUES($1,$2,$3,1,$4,'test',now()+interval '1 minute',$5,$6)",
+      [id, id, camera, type, HOME, context.session_id],
+    );
+  }
+  const job = {
+    id: processor,
+    publisher,
+    camara_id: camera,
+    household_id: HOME,
+    revision: 1,
+  };
+  const event = { category: "motion", score: 0.9 };
+  const count = async () =>
+    Number(
+      (
+        await pool.query(
+          "SELECT count(*) FROM EventoCamara WHERE camara_id=$1",
+          [camera],
+        )
+      ).rows[0].count,
+    );
+  await storeEvent(pool, job, event);
+  expect(await count()).toBe(0);
+  const toggle = async (feature: string, enabled: boolean) =>
+    (
+      await (
+        await call("camera-settings", "POST", {
+          cameraId: camera,
+          feature,
+          enabled,
+        })
+      ).json()
+    ).detection_revision;
+  const current = await toggle("motion", true);
+  await storeEvent(pool, job, event);
+  expect(await count()).toBe(0);
+  job.revision = current;
+  await storeEvent(pool, job, event);
+  await storeEvent(pool, job, event);
+  expect(await count()).toBe(1);
+  job.revision = await toggle("posture", true);
+  for (const key of ["first", "first", "second"])
+    await storeEvent(pool, job, {
+      category: "standing",
+      trackKey: key,
+      score: 0.85,
+    });
+  expect(await count()).toBe(3);
+});

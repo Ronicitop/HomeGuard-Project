@@ -1,4 +1,7 @@
 :5173 {
+ handle_path /media/* {
+  reverse_proxy mediamtx:8889
+ }
  handle /api/* {
   reverse_proxy backend:3000
  }

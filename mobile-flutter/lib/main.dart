@@ -164,7 +164,15 @@ class _HomeShellState extends State<HomeShell> {
           children: [
             Icon(Icons.shield_outlined, color: brand),
             SizedBox(width: 8),
-            Text('homeguard.', style: TextStyle(fontWeight: FontWeight.w700)),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'homeguard.',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
           ],
         ),
         actions: [

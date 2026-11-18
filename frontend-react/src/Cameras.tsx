@@ -3,13 +3,24 @@ import { Link, useSearchParams } from "react-router-dom";
 import { lease, connectRTC, webcamSource } from "./surveillance";
 import { cameraRequest } from "./shared/api";
 import "./Cameras.css";
+const featureLabels = {
+  people: "Personas",
+  faces: "Reconocimiento facial",
+  pets: "Mascotas",
+  motion: "Movimiento",
+  posture: "Postura",
+};
+type Feature = keyof typeof featureLabels;
 type Camera = {
+  detection_settings?: Record<Feature, boolean>;
+  detection_revision?: number;
   id: number;
   nombre: string;
   conectada?: boolean;
   webcam_device_id?: string | null;
 };
 type Result = {
+  revision?: number;
   status: string;
   generation?: string;
   sequence?: number;
@@ -28,13 +39,14 @@ async function api<T = unknown>(url: string, data?: object, method = "POST") {
 }
 const labels: Record<string, string> = {
   live: "Análisis activo en el servidor",
-  degraded: "Reconocimiento facial degradado · detección de objetos activa",
+  degraded: "Análisis parcialmente disponible",
   connecting: "Conectando con el análisis",
   starting: "Cargando modelos en el servidor",
   disconnected: "Cámara desconectada",
   unavailable: "Análisis no disponible",
 };
 export default function Cameras({ admin }: { admin: boolean }) {
+  const [saving, setSaving] = useState(false);
   const [params] = useSearchParams();
   const [view, setView] = useState<"remote" | "publish" | "local">("remote"),
     [cameras, setCameras] = useState<Camera[]>([]),
@@ -83,13 +95,16 @@ export default function Cameras({ admin }: { admin: boolean }) {
         }>("/api/vision?page=" + n),
         api<Camera[]>("/api/streams"),
       ]).then(([d, c]) => {
-        setCameras(
-          c.map((item) => ({
+        setCameras((previous) => c.map((item) => {
+          const known = previous.find(cam => cam.id === item.id);
+          return {
             ...item,
-            webcam_device_id: d.cameras.find((cam) => cam.id === item.id)
-              ?.webcam_device_id,
-          })),
-        );
+            ...(known && (known.detection_revision ?? 0) > (item.detection_revision ?? 0)
+              ? { detection_revision: known.detection_revision, detection_settings: known.detection_settings }
+              : {}),
+            webcam_device_id: d.cameras.find(cam => cam.id === item.id)?.webcam_device_id,
+          };
+        }));
         setProfiles(d.profiles);
         setEvents(d.events);
         setCamera((v) => v || d.cameras[0]?.id || 0);
@@ -260,7 +275,9 @@ export default function Cameras({ admin }: { admin: boolean }) {
       void start();
     };
   });
+  const selected = cameras.find((c) => c.id === camera);
   const live =
+    result.revision === selected?.detection_revision &&
     result.generation === publication &&
     result.at &&
     now - result.at < 5000 &&
@@ -365,6 +382,52 @@ export default function Cameras({ admin }: { admin: boolean }) {
               </label>
             )}
           </div>
+          {selected?.detection_settings && (
+            <fieldset disabled={!admin || saving}>
+              <legend>Detecciones de esta cámara</legend>
+              {(Object.keys(featureLabels) as Feature[]).map((feature) => (
+                <label
+                  key={feature}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: 8,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.detection_settings![feature]}
+                    onChange={async (e) => {
+                      setSaving(true);
+                      try {
+                        const update = await api<
+                          Pick<
+                            Camera,
+                            "detection_settings" | "detection_revision"
+                          >
+                        >("/api/camera-settings", {
+                          cameraId: camera,
+                          feature,
+                          enabled: e.target.checked,
+                        });
+                        setCameras((list) =>
+                          list.map((c) =>
+                            c.id === camera && (update.detection_revision ?? 0) >= (c.detection_revision ?? 0) ? { ...c, ...update } : c,
+                          ),
+                        );
+                      } catch (error) {
+                        setMessage((error as Error).message);
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                  />
+                  {featureLabels[feature]}
+                </label>
+              ))}
+            </fieldset>
+          )}
           <div className="video-stage">
             <div className="video-frame">
               <video ref={video} muted playsInline />
@@ -443,7 +506,10 @@ export default function Cameras({ admin }: { admin: boolean }) {
                 (result.status === "degraded" ? "warning" : "")
               }
             >
-              {labels[result.status] || result.status}
+              {selected?.detection_settings &&
+              !Object.values(selected.detection_settings).some(Boolean)
+                ? "Solo video · análisis apagado"
+                : labels[result.status] || result.status}
               {result.durationMs ? " · " + result.durationMs + " ms" : ""}
             </p>
           )}
@@ -486,7 +552,12 @@ export default function Cameras({ admin }: { admin: boolean }) {
               </label>
               <button
                 className="primary"
-                disabled={!consent || !name.trim() || !live}
+                disabled={
+                  !selected?.detection_settings?.faces ||
+                  !consent ||
+                  !name.trim() ||
+                  !live
+                }
                 onClick={() =>
                   void action({
                     action: "enroll",
@@ -567,6 +638,9 @@ export default function Cameras({ admin }: { admin: boolean }) {
                     person: "Persona sin identificar",
                     cat: "Gato",
                     dog: "Perro",
+                    motion: "Movimiento",
+                    standing: "Persona de pie",
+                    sitting: "Persona sentada",
                   }[e.categoria] || e.categoria}
                 </span>
                 <span>{e.nombre}</span>

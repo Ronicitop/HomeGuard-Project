@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { movement, postures, transitions } from "./activity.mjs";
 import { storeEvent } from "./events.mjs";
 import * as tf from "@tensorflow/tfjs-node";
 import ffmpeg from "ffmpeg-static";
@@ -61,10 +62,12 @@ function publish() {
     cameraId: job?.camara_id,
   });
 }
-const detector = await coco.load({
-  base: "lite_mobilenet_v2",
-  modelUrl: "file:///app/models/coco/model.json",
-});
+let detector;
+const loadObjects = () =>
+  coco.load({
+    base: "lite_mobilenet_v2",
+    modelUrl: "file:///app/models/coco/model.json",
+  });
 const h = new Human({
   backend: "tensorflow",
   modelBasePath: "file:///app/models/human/",
@@ -83,7 +86,22 @@ const h = new Human({
   object: { enabled: false },
   gesture: { enabled: false },
 });
-await h.load();
+const pose = new Human({
+  backend: "tensorflow",
+  modelBasePath: "file:///app/models/human/",
+  face: { enabled: false },
+  body: {
+    enabled: true,
+    maxDetected: 6,
+    skipFrames: 0,
+    skipTime: 0,
+    modelPath: "movenet-multipose.json",
+  },
+  hand: { enabled: false },
+  object: { enabled: false },
+  gesture: { enabled: false },
+  segmentation: { enabled: false },
+});
 ready = true;
 process.send?.({ kind: "ready" });
 async function acquire() {
@@ -93,11 +111,12 @@ async function acquire() {
     await c.query("SELECT pg_advisory_xact_lock(817242)");
     const pub = (
       await c.query(
-        "SELECT s.* FROM SesionCamara s JOIN hg_sessions a ON a.id=s.auth_session_id JOIN hg_memberships m ON m.user_id=s.usuario_id AND m.household_id=s.household_id WHERE s.tipo='publish' AND s.expira_en>NOW() AND a.revoked_at IS NULL AND a.expires_at>NOW() AND a.household_id=s.household_id AND m.enabled AND m.role IN ('ADMINISTRADOR','RESIDENTE') ORDER BY s.expira_en DESC LIMIT 1",
+        "SELECT s.*,c.detection_settings,c.detection_revision FROM SesionCamara s JOIN Camara c ON c.id=s.camara_id AND c.household_id=s.household_id AND c.enabled JOIN hg_sessions a ON a.id=s.auth_session_id JOIN hg_memberships m ON m.user_id=s.usuario_id AND m.household_id=s.household_id WHERE s.tipo='publish' AND s.expira_en>NOW() AND a.revoked_at IS NULL AND a.expires_at>NOW() AND a.household_id=s.household_id AND m.enabled AND m.role IN ('ADMINISTRADOR','RESIDENTE') ORDER BY s.expira_en DESC LIMIT 1",
       )
     ).rows[0];
     if (
       !pub ||
+      !Object.values(pub.detection_settings).some(Boolean) ||
       (await c.query("SELECT 1 FROM SesionCamara WHERE tipo='process'"))
         .rowCount
     ) {
@@ -147,6 +166,11 @@ async function run(j) {
     lastFace = 0,
     lastError = "";
   const seen = new Map();
+  const episodes = new Map(),
+    activity = {};
+  let revision,
+    previousFlags,
+    previousDuration = 1000;
   snapshot = {
     status: "connecting",
     generation: j.publisher,
@@ -230,36 +254,96 @@ async function run(j) {
       const frame = latest,
         capturedAt = lastFrame;
       latest = null;
-      const input = tf.tensor3d(new Uint8Array(frame), [480, 640, 3], "int32");
+      const config = (
+        await pool.query(
+          "SELECT detection_settings,detection_revision FROM Camara WHERE id=$1 AND household_id=$2 AND enabled",
+          [j.camara_id, j.household_id],
+        )
+      ).rows[0];
+      if (!config || !Object.values(config.detection_settings).some(Boolean))
+        break;
+      const flags = config.detection_settings;
+      if (revision !== config.detection_revision) {
+        if (revision !== undefined) {
+          seen.clear();
+          if (previousFlags.motion !== flags.motion) {
+            episodes.delete("motion");
+            delete activity.background;
+          }
+          if (previousFlags.posture !== flags.posture) {
+            for (const key of episodes.keys())
+              if (key !== "motion") episodes.delete(key);
+            delete activity.tracks;
+          }
+          if (!flags.faces) enroll = null;
+        }
+        previousFlags = flags;
+        revision = config.detection_revision;
+      }
+      const input =
+        flags.people || flags.pets || flags.faces || flags.posture
+          ? tf.tensor3d(new Uint8Array(frame), [480, 640, 3], "int32")
+          : null;
       let objects = [],
         faces = [],
         degraded = false;
       try {
-        objects = await detector.detect(input);
+        if (flags.people || flags.pets) {
+          detector ??= await loadObjects();
+          objects = (await detector.detect(input)).filter((o) =>
+            o.class === "person" ? flags.people : flags.pets,
+          );
+        }
         snapshot = {
           status: "live",
           generation: j.publisher,
           cameraId: j.camara_id,
+          revision,
           sequence: ++seq,
           at: capturedAt,
           width: 640,
           height: 480,
-          detections: classify(objects, [], [], () => 0),
+          detections: [],
         };
-        publish();
         try {
-          faces = (await h.detect(input)).face;
+          if (flags.faces) {
+            const result = await h.detect(input);
+            if (result.error) throw Error(result.error);
+            faces = result.face;
+          }
         } catch {
           degraded = true;
         }
-        const ps = (
-          await pool.query("SELECT * FROM PerfilFacial WHERE household_id=$1", [
-            j.household_id,
-          ])
-        ).rows;
+        const ps = flags.faces
+          ? (
+              await pool.query(
+                "SELECT * FROM PerfilFacial WHERE household_id=$1",
+                [j.household_id],
+              )
+            ).rows
+          : [];
         const detections = classify(objects, faces, ps, (a, b) =>
           h.match.similarity(a, b),
         );
+        const extra = flags.motion ? movement(frame, activity) : [];
+        if (flags.posture) {
+          try {
+            const result = await pose.detect(input);
+            if (result.error) throw Error(result.error);
+            extra.push(
+              ...postures(
+                result.body,
+                activity,
+                Date.now(),
+                Math.max(4000, previousDuration * 3),
+              ),
+            );
+          } catch {
+            degraded = true;
+          }
+        }
+        detections.push(...extra);
+        if (!flags.faces) enroll = null;
         const pending = enroll;
         if (pending?.status === "capturing") {
           if (Date.now() > pending.deadline) {
@@ -278,22 +362,27 @@ async function run(j) {
                 "SELECT 1 FROM Usuario u JOIN hg_memberships m ON m.user_id=u.id JOIN hg_sessions a ON a.user_id=u.id AND a.household_id=m.household_id WHERE u.id=$1 AND u.activo AND m.enabled AND m.role='ADMINISTRADOR' AND m.household_id=$2 AND a.id=$3 AND a.revoked_at IS NULL AND a.expires_at>NOW()",
                 [pending.userId, j.household_id, pending.authSessionId],
               );
-              if (a.rowCount && enroll === pending)
-                await pool.query(
-                  "INSERT INTO PerfilFacial(nombre,modelo,descriptores,household_id) VALUES($1,$2,$3,$4)",
+              let saved = false;
+              if (a.rowCount && enroll === pending) {
+                const insert = await pool.query(
+                  "INSERT INTO PerfilFacial(nombre,modelo,descriptores,household_id) SELECT $1,$2,$3,$4 FROM Camara WHERE id=$5 AND detection_revision=$6 AND (detection_settings->>'faces')::boolean FOR SHARE",
                   [
                     pending.name,
                     version,
                     JSON.stringify(pending.samples),
                     j.household_id,
+                    j.camara_id,
+                    revision,
                   ],
                 );
-              pending.status = a.rowCount ? "saved" : "cancelled";
+                saved = insert.rowCount === 1;
+              }
+              pending.status = saved ? "saved" : "cancelled";
               pending.samples = [];
             }
           }
         }
-        const duration = Date.now() - begin;
+        const duration = (previousDuration = Date.now() - begin);
         snapshot = {
           ...snapshot,
           status: degraded ? "degraded" : "live",
@@ -306,15 +395,17 @@ async function run(j) {
         };
         publish();
         const present = new Set();
-        for (const d of detections) {
+        for (const d of transitions(episodes, extra))
+          await storeEvent(pool, { ...j, revision }, d);
+        for (const d of detections.filter((d) => !extra.includes(d))) {
           const key = d.category + ":" + (d.profileId || 0);
           if (present.has(key)) continue;
           present.add(key);
           if (confirm(seen, d, Date.now(), Math.max(3000, duration * 3 + 1000)))
-            await storeEvent(pool, j, d);
+            await storeEvent(pool, { ...j, revision }, d);
         }
       } finally {
-        input.dispose();
+        input?.dispose();
       }
       await new Promise((r) =>
         setTimeout(r, Math.max(0, 500 - (Date.now() - begin))),
@@ -333,9 +424,10 @@ async function run(j) {
     enroll = null;
     snapshot = { status: "disconnected", detections: [] };
     publish();
-    await pool.query("UPDATE SesionCamara SET expira_en=NOW() WHERE id=$1", [
-      j.id,
-    ]);
+    await pool.query(
+      "DELETE FROM SesionCamara WHERE id=$1 AND tipo='process'",
+      [j.id],
+    );
     job = null;
   }
 }

@@ -82,6 +82,17 @@
 .sidebar .brand {
   padding: 0 7px;
 }
+.sidebar-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sidebar-scroll > * {
+  flex-shrink: 0;
+}
 .household-label {
   display: flex;
   align-items: center;
@@ -183,6 +194,8 @@
   padding: 0 14px;
 }
 .logout-button {
+  flex-shrink: 0;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 12px;

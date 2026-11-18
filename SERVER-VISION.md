@@ -54,3 +54,19 @@ Realizar 30 minutos con Android y PC, midiendo duración del análisis mostrada,
 Para repetir: `node --test inference/test.mjs`; `npm run test:responsive` dentro de frontend-react con `UI_URL` apuntando a Vite; `node scripts/e2e-camera.mjs` dentro de frontend-react con `TEST_ORIGIN` HTTPS. El test de video usa cámara sintética, no la webcam física. Los scripts de integración se ejecutan dentro de Docker con acceso al backend y PostgreSQL. El binario estático FFmpeg usa la IP privada resuelta por Node para evitar su fallo con resolución DNS interna.
 
 Medición de la última prueba sintética local: 4394 ms para un análisis completo (objetos más rostro). No equivale a latencia total extremo a extremo y supera el objetivo inicial de dos segundos. La prueba física de 30 minutos y una medición en la VM de destino siguen pendientes. Tras las pruebas, el frontend compilado consumía aproximadamente 15 MiB y el servicio de inferencia en reposo aproximadamente 255 MiB; estos valores no representan picos ni garantizan estabilidad prolongada.
+
+## Detecciones por cámara
+
+En la rama tiago, aplicar las migraciones numeradas del backend (incluida 051_camera_detections.sql) antes de iniciar los servicios actualizados. Reconstruir la imagen de inferencia para incluir MoveNet. En Cámaras, abrir una cámara registrada y cambiar los interruptores con una cuenta administradora. Los residentes pueden consultar los ajustes desde la web y Flutter. Los cambios se guardan aunque la cámara esté desconectada.
+
+Para probar solo video, apagar las cinco funciones. Para probar movimiento, activar únicamente Movimiento y abrir una puerta frente a un teléfono fijo. Para probar postura, activar únicamente Postura, encuadrar el cuerpo completo y mantener cada posición durante al menos tres análisis. El historial indica el inicio de cada episodio o cambio confirmado. Los cambios generales de iluminación se filtran; mover el teléfono puede detectarse como movimiento en la escena.
+
+Con la configuración LAN existente, desde la raíz del proyecto:
+
+```powershell
+docker compose --env-file .env.lan -f docker-compose.yml -f docker-compose.lan.yml up -d --build
+```
+
+El servicio `migrate` del Compose LAN ejecuta las migraciones antes del backend. Abrir `https://<IP-LAN-de-la-PC>:8443` con la misma autoridad local de confianza. Para la app Flutter, usar la configuración de conexión de la instalación y actualizar la app compilada para ver los interruptores.
+
+Para la sesión física de 30 minutos, usar la misma escena con postura apagada durante 15 minutos y encendida durante otros 15. Comparar duración de análisis, memoria y CPU del contenedor con docker stats, registrar las transiciones observadas y comprobar la continuidad con el visor cerrado y tras reconectar. La duración de análisis no incluye latencia WebRTC.

@@ -55,6 +55,35 @@ SessionController sessionFor(String? role) {
 
 void main() {
   testWidgets(
+    'resident can reach logout on a small phone and return to login',
+    (tester) async {
+      final session = sessionFor('RESIDENTE');
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        HomeGuardApp(session: session, initializeServices: false),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      for (final label in ['Configuración', 'Cerrar sesión']) {
+        final target = find.text(label);
+        await tester.ensureVisible(target);
+        await tester.tap(target);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+      await tester.tap(find.text('Confirmar'));
+      await tester.pumpAndSettle();
+      expect(session.api.token, isNull);
+      expect(find.text('Entrar a mi hogar'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      session.dispose();
+    },
+  );
+  testWidgets(
     'phone login is native, has no default password and never offers hardware creation',
     (tester) async {
       final session = sessionFor(null);

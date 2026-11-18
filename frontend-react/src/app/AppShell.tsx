@@ -85,66 +85,66 @@ export function AppShell() {
         />
       )}
       <aside className={`sidebar ${menu ? "is-open" : ""}`}>
-        <Link className="brand" to="/">
-          <span className="brand-mark">
-            <ShieldCheck size={22} />
-          </span>
-          <span>
-            homeguard<span className="brand-dot">.</span>
-          </span>
-        </Link>
-        <div className="household-label">
-          <span className="household-avatar">H</span>
-          <div>
-            <strong>Mi hogar</strong>
-            <small>Espacio personal</small>
+        <div className="sidebar-scroll">
+          <Link className="brand" to="/">
+            <span className="brand-mark">
+              <ShieldCheck size={22} />
+            </span>
+            <span>
+              homeguard<span className="brand-dot">.</span>
+            </span>
+          </Link>
+          <div className="household-label">
+            <span className="household-avatar">H</span>
+            <div>
+              <strong>Mi hogar</strong>
+              <small>Espacio personal</small>
+            </div>
+            <span className="tiny-dot" />
           </div>
-          <span className="tiny-dot" />
-        </div>
-        <span className="nav-label">MI ESPACIO</span>
-        <nav aria-label="Navegación principal">
-          {navigation
-            .filter((n) => !guest || n.path === "/")
-            .map((n) => (
-              <NavLink
-                to={n.path}
-                end={n.path === "/"}
-                key={n.path}
-                onClick={() => setMenu(false)}
-              >
-                <n.icon size={19} />
-                <span>{n.label}</span>
+          <span className="nav-label">MI ESPACIO</span>
+          <nav aria-label="Navegación principal">
+            {navigation
+              .filter((n) => !guest || n.path === "/")
+              .map((n) => (
+                <NavLink
+                  to={n.path}
+                  end={n.path === "/"}
+                  key={n.path}
+                  onClick={() => setMenu(false)}
+                >
+                  <n.icon size={19} />
+                  <span>{n.label}</span>
+                </NavLink>
+              ))}
+          </nav>
+          <div className="sidebar-bottom">
+            {admin && (
+              <NavLink to="/operator">
+                <Headphones size={19} />
+                Central simulada
               </NavLink>
-            ))}
-        </nav>
-        <div className="sidebar-bottom">
-          {admin && (
-            <NavLink to="/operator">
-              <Headphones size={19} />
-              Central simulada
-            </NavLink>
-          )}
-          {!guest && (
-            <NavLink to="/settings">
-              <Settings size={19} />
-              Configuración
-            </NavLink>
-          )}
-          <div className="sidebar-divider" />
-          <div className="session-marker">
-            <LockKeyhole size={15} />
-            Sesión protegida
+            )}
+            {!guest && (
+              <NavLink to="/settings">
+                <Settings size={19} />
+                Configuración
+              </NavLink>
+            )}
+            <div className="sidebar-divider" />
+            <div className="session-marker">
+              <LockKeyhole size={15} />
+              Sesión protegida
+            </div>
           </div>
-          <button
-            className="logout-button"
-            onClick={() =>
-              void signOut().catch((e) => setError(errorMessage(e)))
-            }
-          >
-            <LogOut size={18} />
-            Salir
-          </button>
         </div>
+        <button
+          className="logout-button"
+          onClick={() => void signOut().catch((e) => setError(errorMessage(e)))}
+        >
+          <LogOut size={18} />
+          Salir
+        </button>
       </aside>
       <div className="app-main">
         <header className="topbar">

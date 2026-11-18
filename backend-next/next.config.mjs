@@ -1,2 +1,2 @@
 // Native Windows launcher uses next start; Docker production opts into standalone.
-export default {output:process.env.HG_BUILD_STANDALONE==='true'?'standalone':undefined,experimental:{cpus:1}};
+export default {...(process.env.HG_BUILD_STANDALONE==='true' ? {output:'standalone',outputFileTracingRoot:'/project',turbopack:{root:'/project'}} : {}),experimental:{cpus:1}};

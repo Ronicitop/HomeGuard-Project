@@ -7,3 +7,9 @@
 - BlazeFace y HSE FaceRes incluidos en Human conservan las condiciones de sus fuentes originales. Créditos: https://github.com/vladmandic/human/wiki/Models . FaceRes identifica su origen en https://github.com/HSE-asavchenko/HSE_FaceRec_tf .
 
 `npm run models` copia las licencias distribuidas por los paquetes junto a los modelos. Las condiciones del código Human no reemplazan las de los pesos de terceros. Mantener estos créditos al distribuir la aplicación.
+
+## Postura en el servidor
+
+HomeGuard utiliza MoveNet MultiPose Lightning de Google mediante Human 3.3.6. Al construir la imagen se descargan el grafo y los pesos convertidos de [human-models, revisión bc66dc5](https://github.com/vladmandic/human-models/tree/bc66dc53bac03c96d35a7e6daaf717e72f3985f5/models). La imagen incluye la licencia MIT de ese repositorio. El modelo original se distribuye bajo Apache 2.0. [Ficha del modelo MoveNet](https://www.kaggle.com/models/google/movenet/tfJs/multipose-lightning)
+
+MoveNet devuelve articulaciones de varias personas. HomeGuard estima la postura a partir de las articulaciones visibles y mantiene un identificador temporal por persona dentro de la transmisión. Una vista frontal sentada, ropa holgada o piernas ocultas pueden producir «Postura indeterminada». Para probar ambas posturas, colocar el teléfono fijo de lado o en diagonal y encuadrar de los hombros a los pies.

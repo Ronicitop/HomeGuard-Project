@@ -32,6 +32,8 @@ export async function handleCameraApi(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname.replace(/^\/api\//, "");
     let response: Response;
     if (path === "vision") response = await vision(request, ctx);
+    else if (path === "camera-settings")
+      response = await cameraSettings(request, ctx);
     else if (path === "streams") response = await streams(request, ctx);
     else if (path === "analysis") response = await analysis(request, ctx);
     else if (path === "auth/logout") {
@@ -42,6 +44,25 @@ export async function handleCameraApi(request: Request): Promise<Response> {
   } catch (error) {
     return cors(errorResponse(error), request);
   }
+}
+async function cameraSettings(request: Request, ctx: AuthContext) {
+  assertPermission(ctx, "cameras.manage");
+  const input = await body(
+    request,
+    z
+      .object({
+        cameraId,
+        feature: z.enum(["people", "faces", "pets", "motion", "posture"]),
+        enabled: z.boolean(),
+      })
+      .strict(),
+  );
+  const updated = await pool.query(
+    "UPDATE Camara SET detection_settings=jsonb_set(detection_settings,ARRAY[$3::text],to_jsonb($4::boolean)), detection_revision=detection_revision+1 WHERE id=$1 AND household_id=$2 AND enabled RETURNING detection_settings,detection_revision",
+    [input.cameraId, ctx.household_id, input.feature, input.enabled],
+  );
+  if (!updated.rowCount) fail(404, "NOT_FOUND", "Cámara no disponible.");
+  return json(updated.rows[0]);
 }
 async function vision(request: Request, ctx: AuthContext) {
   if (request.method === "GET") {
@@ -131,7 +152,7 @@ async function streams(request: Request, ctx: AuthContext) {
     return json(
       (
         await pool.query(
-          "SELECT c.id,c.nombre,EXISTS(SELECT 1 FROM SesionCamara s JOIN hg_sessions a ON a.id=s.auth_session_id WHERE s.camara_id=c.id AND s.tipo='publish' AND s.media_id IS NOT NULL AND s.expira_en>now() AND a.revoked_at IS NULL AND a.expires_at>now()) conectada FROM Camara c WHERE c.household_id=$1 AND c.enabled ORDER BY c.id",
+          "SELECT c.id,c.nombre,c.detection_settings,c.detection_revision,EXISTS(SELECT 1 FROM SesionCamara s JOIN hg_sessions a ON a.id=s.auth_session_id WHERE s.camara_id=c.id AND s.tipo='publish' AND s.media_id IS NOT NULL AND s.expira_en>now() AND a.revoked_at IS NULL AND a.expires_at>now()) conectada FROM Camara c WHERE c.household_id=$1 AND c.enabled ORDER BY c.id",
           [ctx.household_id],
         )
       ).rows,
@@ -255,7 +276,13 @@ async function analysis(request: Request, ctx: AuthContext) {
         })
         .strict(),
     );
-    await cameraOwned(ctx, input.cameraId);
+    const camera = await cameraOwned(ctx, input.cameraId);
+    if (input.action === "enroll" && !camera.detection_settings.faces)
+      fail(
+        409,
+        "FACES_DISABLED",
+        "Activá el reconocimiento facial para registrar muestras.",
+      );
     if (input.action === "enroll" && (!input.name || input.consent !== true))
       fail(
         400,
@@ -299,10 +326,11 @@ async function analysis(request: Request, ctx: AuthContext) {
       };
       const send = async () => {
         if (closed) return;
+        let camera;
         try {
           const current = await requireSession(request);
           assertPermission(current, "cameras.read");
-          await cameraOwned(current, id);
+          camera = await cameraOwned(current, id);
         } catch {
           close();
           return;
@@ -310,11 +338,19 @@ async function analysis(request: Request, ctx: AuthContext) {
         let snapshot: unknown = { status: "unavailable", detections: [] };
         try {
           const response = await internal(`/snapshot?cameraId=${id}`);
-          if (response.ok) snapshot = await response.json();
+          if (response.ok) {
+            const frame = await response.json();
+            snapshot =
+              frame.revision === camera.detection_revision || !frame.at
+                ? frame
+                : { status: "connecting", detections: [] };
+          }
         } catch {}
         if (!closed) {
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(snapshot)}\n\n`),
+            encoder.encode(
+              `data: ${JSON.stringify({ ...(snapshot as object), detection_settings: camera.detection_settings, detection_revision: camera.detection_revision })}\n\n`,
+            ),
           );
           timer = setTimeout(send, 500);
         }

@@ -26,11 +26,15 @@ services:
   migrate:
     build:
       context: ./backend-next
+      additional_contexts:
+        contracts: ./contracts
       dockerfile: Dockerfile.prod
       target: worker
     command: [npm, run, migrate]
     environment: &backend_env
+      MEDIA_API: http://mediamtx:9997
       DB_HOST: db
+      DB_PORT: 5432
       DB_USER: ${DB_USER:-postgres}
       DB_PASS: ${DB_PASS:?Set DB_PASS}
       DB_NAME: ${DB_NAME:-homeguard_db}
@@ -48,6 +52,8 @@ services:
   backend:
     build:
       context: ./backend-next
+      additional_contexts:
+        contracts: ./contracts
       dockerfile: Dockerfile.prod
       target: runtime
     restart: unless-stopped
@@ -61,6 +67,8 @@ services:
   worker:
     build:
       context: ./backend-next
+      additional_contexts:
+        contracts: ./contracts
       dockerfile: Dockerfile.prod
       target: worker
     restart: unless-stopped
@@ -81,6 +89,8 @@ services:
   frontend:
     build:
       context: ./frontend-react
+      additional_contexts:
+        contracts: ./contracts
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     environment:
@@ -96,6 +106,7 @@ services:
     cpus: 2.0
     environment:
       DB_HOST: db
+      DB_PORT: 5432
       DB_USER: ${DB_USER:-postgres}
       DB_PASS: ${DB_PASS:-postgres}
       DB_NAME: ${DB_NAME:-homeguard_db}

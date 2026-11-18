@@ -87,6 +87,51 @@ class _CameraScreenState extends State<CameraScreen>
   bool busy = false, connected = false, rendererReady = false;
   String message = 'Pulsá Ver transmisión para comenzar.';
   Json analysis = {};
+  Json settings = {};
+  int revision = 0;
+  Timer? settingsTimer;
+  bool savingSettings = false;
+  void applySettings(Json row) {
+    final next = row['detection_revision'];
+    if (next is! int || next < revision) return;
+    revision = next;
+    settings = obj(row['detection_settings']);
+    if (analysis['revision'] != next) analysis = {};
+  }
+
+  Future<void> refreshSettings() async {
+    try {
+      final cameras = rows(await api!.get('streams', legacy: true));
+      for (final c in cameras) {
+        if (mounted &&
+            c['id'] == widget.camera['id'] &&
+            c['detection_revision'] != revision) {
+          setState(() => applySettings(c));
+        }
+      }
+    } catch (_) {
+      /* Keep the last confirmed settings until reconnect. */
+    }
+  }
+
+  Future<void> toggle(String feature, bool value) async {
+    setState(() => savingSettings = true);
+    try {
+      final updated = obj(
+        await api!.post('camera-settings', {
+          'cameraId': widget.camera['id'],
+          'feature': feature,
+          'enabled': value,
+        }, legacy: true),
+      );
+      if (mounted) setState(() => applySettings(updated));
+    } catch (e) {
+      if (mounted) showMessage(context, e);
+    } finally {
+      if (mounted) setState(() => savingSettings = false);
+    }
+  }
+
   int generation = 0;
   @override
   void initState() {
@@ -98,6 +143,13 @@ class _CameraScreenState extends State<CameraScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     api ??= AppScope.of(context).api;
+    if (settingsTimer == null) {
+      applySettings(widget.camera);
+      settingsTimer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => unawaited(refreshSettings()),
+      );
+    }
   }
 
   Future<void> start({bool publish = false}) async {
@@ -268,7 +320,7 @@ class _CameraScreenState extends State<CameraScreen>
                   }),
             );
           });
-          _startAnalysis(gen);
+          _startAnalysis(gen, txt(lease['generation']));
         },
       );
       if (!accepted) return;
@@ -287,7 +339,7 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
-  void _startAnalysis(int gen) {
+  void _startAnalysis(int gen, String publication) {
     final client = http.Client();
     analysisClient = client;
     final request =
@@ -317,12 +369,35 @@ class _CameraScreenState extends State<CameraScreen>
                             mounted &&
                             gen == generation) {
                           try {
-                            setState(
-                              () => analysis = obj(
+                            setState(() {
+                              final frame = obj(
                                 jsonDecode(line.substring(5).trim()),
-                              ),
-                            );
+                              );
+                              if ((frame['detection_revision'] ?? 0) <
+                                  revision) {
+                                return;
+                              }
+                              applySettings(frame);
+                              if (frame['generation'] != null &&
+                                  frame['generation'] != publication) {
+                                analysis = {};
+                                return;
+                              }
+                              final at = frame['at'];
+                              analysis =
+                                  at is int &&
+                                      DateTime.now().millisecondsSinceEpoch -
+                                              at >
+                                          5000
+                                  ? {'status': 'unavailable'}
+                                  : frame;
+                            });
                           } catch (_) {}
+                        }
+                      },
+                      onDone: () {
+                        if (mounted && gen == generation) {
+                          setState(() => analysis = {});
                         }
                       },
                       onError: (_) {
@@ -365,7 +440,12 @@ class _CameraScreenState extends State<CameraScreen>
     leaseToken = null;
     transport?.close();
     transport = null;
-    if (mounted) setState(() => connected = false);
+    if (mounted) {
+      setState(() {
+        connected = false;
+        analysis = {};
+      });
+    }
     if (endpoint != null && token != null) {
       final client = http.Client();
       try {
@@ -394,6 +474,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   void dispose() {
+    settingsTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     unawaited(
       stop().whenComplete(() async {
@@ -443,10 +524,56 @@ class _CameraScreenState extends State<CameraScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
               child: rendererReady
-                  ? RTCVideoView(
-                      renderer,
-                      objectFit:
-                          RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                  ? Center(
+                      child: AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: LayoutBuilder(
+                          builder: (context, size) {
+                            return Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                RTCVideoView(
+                                  renderer,
+                                  objectFit: RTCVideoViewObjectFit
+                                      .RTCVideoViewObjectFitContain,
+                                ),
+                                if (connected)
+                                  for (final d in rows(analysis['detections']))
+                                    if (d['box'] is List &&
+                                        (d['box'] as List).length == 4)
+                                      Positioned(
+                                        left: d['box'][0] * size.maxWidth,
+                                        top: d['box'][1] * size.maxHeight,
+                                        width: d['box'][2] * size.maxWidth,
+                                        height: d['box'][3] * size.maxHeight,
+                                        child: IgnorePointer(
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              border: Border.all(
+                                                color: Colors.lightGreenAccent,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            child: Align(
+                                              alignment: Alignment.topLeft,
+                                              child: Text(
+                                                txt(d['label']),
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  backgroundColor:
+                                                      Colors.black87,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
                     )
                   : const Center(
                       child: Icon(
@@ -485,19 +612,40 @@ class _CameraScreenState extends State<CameraScreen>
           ],
         ),
         Section(
+          title: 'Detecciones de esta cámara',
+          children: [
+            for (final item in const {
+              'people': 'Personas',
+              'faces': 'Reconocimiento facial',
+              'pets': 'Mascotas',
+              'motion': 'Movimiento',
+              'posture': 'Postura',
+            }.entries)
+              SwitchListTile(
+                title: Text(item.value),
+                value: settings[item.key] == true,
+                onChanged: admin && !savingSettings && settings.isNotEmpty
+                    ? (v) => toggle(item.key, v)
+                    : null,
+              ),
+          ],
+        ),
+        Section(
           title: 'Análisis del servidor',
           subtitle:
               'Las detecciones dependen de la cámara y del servicio de inferencia existentes.',
           children: [
             Text(
-              {
-                    'live': 'Análisis activo',
-                    'degraded': 'Reconocimiento facial degradado',
-                    'connecting': 'Conectando',
-                    'unavailable': 'Análisis no disponible',
-                    'disconnected': 'Cámara desconectada',
-                  }[analysis['status']] ??
-                  'Esperando análisis',
+              settings.isNotEmpty && !settings.containsValue(true)
+                  ? 'Solo video · análisis apagado'
+                  : {
+                          'live': 'Análisis activo',
+                          'degraded': 'Análisis parcialmente disponible',
+                          'connecting': 'Conectando',
+                          'unavailable': 'Análisis no disponible',
+                          'disconnected': 'Cámara desconectada',
+                        }[analysis['status']] ??
+                        'Esperando análisis',
             ),
             for (final d in rows(analysis['detections']))
               ListTile(
@@ -512,7 +660,7 @@ class _CameraScreenState extends State<CameraScreen>
               ),
           ],
         ),
-        if (admin)
+        if (admin && settings['faces'] == true)
           Section(
             title: 'Perfiles faciales',
             subtitle:

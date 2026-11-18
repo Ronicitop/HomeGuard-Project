@@ -1,14 +1,16 @@
 FROM node:22-alpine AS build
-WORKDIR /app
+WORKDIR /project/backend-next
 COPY package*.json ./
 RUN npm ci
+COPY --from=contracts / /project/contracts/
 COPY . .
 RUN HG_BUILD_STANDALONE=true npm run build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production HOSTNAME=0.0.0.0
-COPY --from=build --chown=node:node /app/.next/standalone ./
-COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /project/backend-next/.next/standalone ./
+COPY --from=build --chown=node:node /project/backend-next/.next/static ./backend-next/.next/static
+WORKDIR /app/backend-next
 USER node
 EXPOSE 3000
 CMD ["node","server.js"]
