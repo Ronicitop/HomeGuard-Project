@@ -132,6 +132,15 @@ export async function transitionEvent(
     return result;
   });
 }
+export async function latestSseSequence(ctx: AuthContext): Promise<string> {
+  assertPermission(ctx, "events.read");
+  return (
+    await pool.query(
+      "SELECT COALESCE(max(sequence),0)::text sequence FROM hg_sse_log WHERE household_id=$1",
+      [ctx.household_id],
+    )
+  ).rows[0].sequence;
+}
 export async function readSse(ctx: AuthContext, lastSequence: string) {
   assertPermission(ctx, "events.read");
   if (!/^\d{1,18}$/.test(lastSequence))

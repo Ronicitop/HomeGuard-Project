@@ -6,6 +6,7 @@ import {
   getEvent,
   transitionEvent,
   readSse,
+  latestSseSequence,
 } from "../events/eventService";
 import { createDemoEvent } from "../events/demoService";
 import { requireSession } from "../auth/sessionService";
@@ -75,7 +76,9 @@ export async function eventRoutes(
       request.headers.get("last-event-id") ||
       url.searchParams.get("after") ||
       "0";
-    if (!/^\d{1,18}$/.test(cursor))
+    const latest = cursor === "latest";
+    if (latest) cursor = await latestSseSequence(await requireSession(request));
+    else if (!/^\d{1,18}$/.test(cursor))
       fail(400, "INVALID_CURSOR", "Cursor no válido.");
     let timer: ReturnType<typeof setInterval> | undefined;
     let stopped = false,
@@ -116,7 +119,15 @@ export async function eventRoutes(
             busy = false;
           }
         };
+        if (request.signal.aborted) {
+          stop();
+          return;
+        }
         request.signal.addEventListener("abort", stop, { once: true });
+        if (latest)
+          controller.enqueue(
+            encoder.encode(`id: ${cursor}\nevent: sync_ready\ndata: {}\n\n`),
+          );
         timer = setInterval(tick, 3000);
         void tick();
       },

@@ -1,0 +1,7 @@
+param([string]$Servidor='',[switch]$Release,[ValidateSet('android-arm64','android-arm','android-x64')][string]$Arquitectura='android-arm64',[string]$ConfiguracionFirebase='')
+$ErrorActionPreference='Stop';$projectRoot=$PSScriptRoot
+$toolchain=Join-Path $projectRoot '.local\android-toolchain\env.ps1';if(Test-Path -LiteralPath $toolchain){. $toolchain}
+$buildArgs=@('build','apk',$(if($Release){'--release'}else{'--debug'}),'--target-platform',$Arquitectura,'--split-per-abi')
+if($Servidor){$uri=[uri]$Servidor;if($uri.Scheme -notin @('http','https') -or -not $uri.Host -or $uri.UserInfo -or $uri.AbsolutePath -ne '/' -or $uri.Query -or $uri.Fragment){throw 'El servidor debe ser un origen HTTP/HTTPS, sin rutas ni credenciales.'};$buildArgs+="--dart-define=HOMEGUARD_SERVER=$($Servidor.TrimEnd('/'))"}
+if($ConfiguracionFirebase){$firebaseFile=(Resolve-Path -LiteralPath $ConfiguracionFirebase).Path;$buildArgs+="--dart-define-from-file=$firebaseFile"}
+Push-Location (Join-Path $projectRoot 'mobile-flutter');try{flutter @buildArgs;if($LASTEXITCODE -ne 0){throw 'La compilación de Android falló.'};$mode=if($Release){'release'}else{'debug'};$abi=@{'android-arm64'='arm64-v8a';'android-arm'='armeabi-v7a';'android-x64'='x86_64'}[$Arquitectura];$artifact=Join-Path $projectRoot ".local\artifacts\HomeGuard-$Arquitectura-$mode.apk";New-Item -ItemType Directory -Force -Path (Split-Path $artifact)|Out-Null;Copy-Item -LiteralPath "build\app\outputs\flutter-apk\app-$abi-$mode.apk" -Destination $artifact -Force;Write-Host "APK: $artifact"}finally{Pop-Location}

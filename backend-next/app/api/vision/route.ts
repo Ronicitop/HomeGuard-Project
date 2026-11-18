@@ -5,4 +5,5 @@ export {
   handleCameraApi as GET,
   handleCameraApi as POST,
   handleCameraApi as DELETE,
+  handleCameraApi as OPTIONS,
 };

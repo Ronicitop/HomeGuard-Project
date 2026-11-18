@@ -2,8 +2,8 @@ param([switch]$ConPostgres)
 $ErrorActionPreference='Stop';$projectRoot=$PSScriptRoot
 . (Join-Path $projectRoot 'scripts\SafeProcess.ps1')
 $nodeExe=(Get-Command node.exe).Source
-$services=@{frontend='frontend-react\node_modules\vite\bin\vite.js';simulator='backend-next\workers\actuatorSimulator.ts';worker='backend-next\workers\eventProcessor.ts';backend='backend-next\node_modules\next\dist\bin\next';mqtt='scripts\broker.cjs'}
-foreach($name in @('frontend','simulator','worker','backend','mqtt')){
+$services=@{flutterpreview='scripts\flutter-preview.cjs';frontend='frontend-react\node_modules\vite\bin\vite.js';simulator='backend-next\workers\actuatorSimulator.ts';worker='backend-next\workers\eventProcessor.ts';backend='backend-next\node_modules\next\dist\bin\next';mqtt='scripts\broker.cjs'}
+foreach($name in @('flutterpreview','frontend','simulator','worker','backend','mqtt')){
     $pidFile=Join-Path $projectRoot ".local\$name.pid";if(-not(Test-Path -LiteralPath $pidFile)){continue}
     $serviceProcessId=[int](Get-Content -LiteralPath $pidFile);$serviceProcess=Get-CimInstance Win32_Process -Filter "ProcessId=$serviceProcessId"
     $entry=Join-Path $projectRoot $services[$name]

@@ -45,6 +45,25 @@ async function call(path: string, method = "GET", data?: unknown, user = 1) {
   );
 }
 let camera: number;
+test("camera preflight supports authorized browser origins without requiring a session", async () => {
+  const response = await handleCameraApi(
+    new Request("http://localhost:3000/api/streams", {
+      method: "OPTIONS",
+      headers: {
+        origin: "http://localhost:5173",
+        "access-control-request-method": "GET",
+        "access-control-request-headers": "authorization",
+      },
+    }),
+  );
+  expect(response.status).toBe(204);
+  expect(response.headers.get("access-control-allow-origin")).toBe(
+    "http://localhost:5173",
+  );
+  expect(response.headers.get("access-control-allow-headers")).toContain(
+    "Authorization",
+  );
+});
 test("camera APIs accept the existing B session and admin can register a camera", async () => {
   expect((await call("vision", "GET", undefined, 0)).status).toBe(401);
   const response = await call("vision", "POST", {

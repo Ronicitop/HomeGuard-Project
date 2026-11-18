@@ -3,7 +3,7 @@ import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import pool from "../db";
 import { withTransaction } from "../db/transaction";
-import { requireSession } from "../auth/sessionService";
+import { requireSession, assertOrigin } from "../auth/sessionService";
 import { assertPermission, type AuthContext } from "../auth/permissions";
 import { body, json, cors, errorResponse } from "../http/response";
 import { AppError, fail } from "../http/errors";
@@ -24,6 +24,9 @@ async function cameraOwned(ctx: AuthContext, id: number) {
 }
 export async function handleCameraApi(request: Request): Promise<Response> {
   try {
+    assertOrigin(request);
+    if (request.method === "OPTIONS")
+      return cors(new Response(null, { status: 204 }), request);
     const ctx = await requireSession(request);
     assertPermission(ctx, "cameras.read");
     const path = new URL(request.url).pathname.replace(/^\/api\//, "");

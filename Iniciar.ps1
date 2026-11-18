@@ -8,7 +8,8 @@ if ($Interfaz -ne '127.0.0.1') {
 }
 $env:API_PROXY_TARGET="http://${Interfaz}:3000"
 $env:HG_MQTT_LAN_IP=if($Interfaz -ne '127.0.0.1'){$Interfaz}else{''}
-if($Interfaz -ne '127.0.0.1'){$env:HG_WEB_ORIGIN="http://${Interfaz}:5173,http://localhost:5173,http://127.0.0.1:5173"}
+$env:HG_WEB_ORIGIN="http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
+if($Interfaz -ne '127.0.0.1'){$env:HG_WEB_ORIGIN+=",http://${Interfaz}:5173,http://${Interfaz}:5174"}
 $nodeExe=(Get-Command node.exe).Source;$logs=Join-Path $projectRoot '.local\logs'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
 $pgBin=if($env:HG_PG_BIN){$env:HG_PG_BIN}else{'C:\Program Files\PostgreSQL\18\bin'}

@@ -18,7 +18,7 @@ export async function notificationRoutes(
       return json({
         items: (
           await pool.query(
-            "SELECT id,installation_id,platform,enabled,last_seen FROM hg_push_devices WHERE household_id=$1 AND user_id=$2 ORDER BY last_seen DESC",
+            "SELECT id,installation_id,platform,provider,enabled,last_seen FROM hg_push_devices WHERE household_id=$1 AND user_id=$2 ORDER BY last_seen DESC",
             [ctx.household_id, ctx.user_id],
           )
         ).rows,
@@ -30,7 +30,8 @@ export async function notificationRoutes(
         z
           .object({
             installation_id: uuid,
-            token: z.string().min(10).max(500),
+            token: z.string().min(10).max(4096),
+            provider: z.enum(["EXPO", "FCM"]).default("EXPO"),
             platform: z.literal("android"),
           })
           .strict(),

@@ -5,7 +5,7 @@ export async function reconcileReceipts(fetcher: typeof fetch = fetch) {
   if (process.env.HG_PUSH_ENABLED !== "true") return;
   const notifications = (
     await pool.query(
-      "SELECT * FROM hg_notifications WHERE status='SENT' AND provider_ticket IS NOT NULL AND provider_receipt IS NULL AND created_at<now()-interval '15 minutes' ORDER BY created_at LIMIT 100",
+      "SELECT * FROM hg_notifications WHERE provider='EXPO' AND status='SENT' AND provider_ticket IS NOT NULL AND provider_receipt IS NULL AND created_at<now()-interval '15 minutes' ORDER BY created_at LIMIT 100",
     )
   ).rows;
   if (!notifications.length) return;
@@ -51,7 +51,7 @@ export async function reconcileReceipts(fetcher: typeof fetch = fetch) {
         );
         if (code === "DeviceNotRegistered")
           await tx.query(
-            "UPDATE hg_push_devices SET enabled=false WHERE household_id=$1 AND user_id=$2 AND installation_id=$3",
+            "UPDATE hg_push_devices SET enabled=false WHERE household_id=$1 AND user_id=$2 AND installation_id=$3 AND provider='EXPO'",
             [
               notification.household_id,
               notification.user_id,

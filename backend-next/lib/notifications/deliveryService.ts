@@ -8,6 +8,7 @@ import { planNotifications, buildPushPayload } from "./notificationService";
 import { enqueueJob } from "../jobs/outboxService";
 import { emit } from "../audit/auditService";
 import { loadRuleContext } from "../integrations/vision";
+import { deliverFcm } from "./fcmDelivery";
 async function ruleAllowsDispatch(event: any, challenge: boolean) {
   if (
     challenge &&
@@ -45,11 +46,24 @@ async function ruleAllowsDispatch(event: any, challenge: boolean) {
 }
 export async function registerPushDevice(
   ctx: AuthContext,
-  input: { installation_id: string; token: string; platform: string },
+  input: {
+    installation_id: string;
+    token: string;
+    platform: string;
+    provider?: "EXPO" | "FCM";
+  },
 ) {
   assertPermission(ctx, "notifications.manage");
+  const provider = input.provider || "EXPO";
   if (
-    !/^(ExponentPushToken|ExpoPushToken)\[[a-zA-Z0-9_-]+\]$/.test(input.token)
+    typeof input.token !== "string" ||
+    !(provider === "FCM"
+      ? /^[a-zA-Z0-9:_-]{20,4096}$/.test(input.token)
+      : provider === "EXPO" &&
+        input.token.length <= 500 &&
+        /^(ExponentPushToken|ExpoPushToken)\[[a-zA-Z0-9_-]+\]$/.test(
+          input.token,
+        ))
   )
     fail(400, "INVALID_PUSH_TOKEN", "El token del dispositivo no es válido.");
   const encrypted = encryptToken(input.token);
@@ -59,7 +73,7 @@ export async function registerPushDevice(
     ]);
     const previous = (
       await tx.query(
-        "SELECT id,token_encrypted FROM hg_push_devices WHERE installation_id=$1 AND (user_id<>$2 OR household_id<>$3) FOR UPDATE",
+        "SELECT id,token_encrypted,provider FROM hg_push_devices WHERE installation_id=$1 AND (user_id<>$2 OR household_id<>$3) FOR UPDATE",
         [input.installation_id, ctx.user_id, ctx.household_id],
       )
     ).rows;
@@ -76,14 +90,14 @@ export async function registerPushDevice(
           incomingHash,
         );
       } catch {}
-      if (sameToken)
+      if (sameToken && device.provider === provider)
         await tx.query("UPDATE hg_push_devices SET enabled=false WHERE id=$1", [
           device.id,
         ]);
     }
     return (
       await tx.query(
-        "INSERT INTO hg_push_devices(id,household_id,user_id,installation_id,token_encrypted,platform) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(household_id,user_id,installation_id) DO UPDATE SET token_encrypted=excluded.token_encrypted,enabled=true,last_seen=now() RETURNING id,installation_id,platform,enabled,last_seen",
+        "INSERT INTO hg_push_devices(id,household_id,user_id,installation_id,token_encrypted,platform,provider) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(household_id,user_id,installation_id) DO UPDATE SET token_encrypted=excluded.token_encrypted,platform=excluded.platform,provider=excluded.provider,enabled=true,last_seen=now() RETURNING id,installation_id,platform,provider,enabled,last_seen",
         [
           randomUUID(),
           ctx.household_id,
@@ -91,6 +105,7 @@ export async function registerPushDevice(
           input.installation_id,
           encrypted,
           input.platform,
+          provider,
         ],
       )
     ).rows[0];
@@ -156,7 +171,7 @@ export async function deliverNotification(
   if (!claimed) return { status: "SKIPPED" };
   const data = (
     await pool.query(
-      `SELECT e.*,d.id device_id,d.token_encrypted,d.enabled,m.role,m.enabled member_enabled,u.activo,COALESCE(p.categories,ARRAY['SECURITY','MOVEMENT','EMERGENCY','SYSTEM']) categories,p.quiet_start,p.quiet_end,COALESCE(p.critical_demo_override,false) critical_demo_override FROM hg_notifications n JOIN hg_events e ON e.id=n.event_id AND e.household_id=n.household_id JOIN hg_push_devices d ON d.household_id=n.household_id AND d.user_id=n.user_id AND d.installation_id=n.installation_id JOIN hg_memberships m ON m.household_id=n.household_id AND m.user_id=n.user_id JOIN Usuario u ON u.id=n.user_id LEFT JOIN hg_notification_preferences p ON p.household_id=n.household_id AND p.user_id=n.user_id WHERE n.id=$1`,
+      `SELECT e.*,i.id incident_id,d.id device_id,d.token_encrypted,d.provider,d.enabled,m.role,m.enabled member_enabled,u.activo,COALESCE(p.categories,ARRAY['SECURITY','MOVEMENT','EMERGENCY','SYSTEM']) categories,p.quiet_start,p.quiet_end,COALESCE(p.critical_demo_override,false) critical_demo_override FROM hg_notifications n JOIN hg_events e ON e.id=n.event_id AND e.household_id=n.household_id LEFT JOIN hg_emergency_incidents i ON i.event_id=e.id AND i.household_id=e.household_id JOIN hg_push_devices d ON d.household_id=n.household_id AND d.user_id=n.user_id AND d.installation_id=n.installation_id JOIN hg_memberships m ON m.household_id=n.household_id AND m.user_id=n.user_id JOIN Usuario u ON u.id=n.user_id LEFT JOIN hg_notification_preferences p ON p.household_id=n.household_id AND p.user_id=n.user_id WHERE n.id=$1`,
       [id],
     )
   ).rows[0];
@@ -196,36 +211,53 @@ export async function deliverNotification(
   } else
     try {
       const token = decryptToken(data.token_encrypted);
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (process.env.HG_EXPO_ACCESS_TOKEN)
-        headers.Authorization = `Bearer ${process.env.HG_EXPO_ACCESS_TOKEN}`;
-      const response = await fetcher("https://exp.host/--/api/v2/push/send", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(buildPushPayload(token, data)),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (response.status === 429 || response.status >= 500) {
-        status = "QUEUED";
-        errorCode = "PROVIDER_RETRY";
-        retry = true;
+      if (data.provider === "FCM") {
+        const result = await deliverFcm(
+          token,
+          { ...data, notification_channel: claimed.channel },
+          fetcher,
+        );
+        status = result.status;
+        errorCode = result.error_code;
+        ticket = result.ticket;
+        retry = result.retry === true;
+        if (result.invalid_token)
+          await pool.query(
+            "UPDATE hg_push_devices SET enabled=false WHERE id=$1 AND provider='FCM' AND token_encrypted=$2",
+            [data.device_id, data.token_encrypted],
+          );
       } else {
-        const payload = await response.json();
-        const result = Array.isArray(payload.data)
-          ? payload.data[0]
-          : payload.data;
-        if (response.ok && result?.status === "ok" && result.id) {
-          status = "SENT";
-          ticket = result.id;
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (process.env.HG_EXPO_ACCESS_TOKEN)
+          headers.Authorization = `Bearer ${process.env.HG_EXPO_ACCESS_TOKEN}`;
+        const response = await fetcher("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(buildPushPayload(token, data)),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (response.status === 429 || response.status >= 500) {
+          status = "QUEUED";
+          errorCode = "PROVIDER_RETRY";
+          retry = true;
         } else {
-          errorCode = result?.details?.error || "PROVIDER_REJECTED";
-          if (errorCode === "DeviceNotRegistered")
-            await pool.query(
-              "UPDATE hg_push_devices SET enabled=false WHERE id=$1",
-              [data.device_id],
-            );
+          const payload = await response.json();
+          const result = Array.isArray(payload.data)
+            ? payload.data[0]
+            : payload.data;
+          if (response.ok && result?.status === "ok" && result.id) {
+            status = "SENT";
+            ticket = result.id;
+          } else {
+            errorCode = result?.details?.error || "PROVIDER_REJECTED";
+            if (errorCode === "DeviceNotRegistered")
+              await pool.query(
+                "UPDATE hg_push_devices SET enabled=false WHERE id=$1 AND provider='EXPO' AND token_encrypted=$2",
+                [data.device_id, data.token_encrypted],
+              );
+          }
         }
       }
     } catch {
@@ -234,8 +266,14 @@ export async function deliverNotification(
     }
   await withTransaction(async (tx) => {
     await tx.query(
-      "UPDATE hg_notifications SET status=$2,error_code=$3,provider_ticket=$4 WHERE id=$1",
-      [id, status, errorCode || null, ticket || null],
+      "UPDATE hg_notifications SET status=$2,error_code=$3,provider_ticket=$4,provider=$5 WHERE id=$1",
+      [
+        id,
+        status,
+        errorCode || null,
+        ticket || null,
+        data?.provider || claimed.provider,
+      ],
     );
     await emit(
       tx,
